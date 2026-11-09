@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Nelson Pascoal -->
+<!-- AppStream metainfo: this is what makes the package appear in COSMIC Store
+     (the store reads the distro's AppStream catalogue, and appstream-compose
+     merges this file with tech.i2r.matrixoverlay.desktop). The component id is
+     deliberately the reverse-DNS of our own domain and matches the .desktop and
+     icon basenames, because appstream-compose merges by basename. -->
+<component type="desktop-application">
+  <id>tech.i2r.matrixoverlay</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Matrix rain overlay</name>
+  <summary>Show Matrix-style digital rain over every screen</summary>
+
+  <description>
+    <p>Press Ctrl+Shift+M and The Matrix "digital rain" cascades across every
+    monitor while the desktop dims underneath. Escape, a click, or the same
+    shortcut brings the desktop back.</p>
+    <p>It is a layer-shell overlay on COSMIC/Wayland, composited by the GPU
+    through EGL/GLES2 rather than painted on the CPU, so it holds its frame rate
+    for a few percent of one core. Everything is tunable in a plain config file
+    that is reloaded while a show is running: speed, density, tail length,
+    colours, font and glyph set.</p>
+    <p>There is no window and no tray icon by design. The intended trigger is a
+    COSMIC custom shortcut bound to the command <em>matrix-rain</em>; the launcher
+    entry starts the same show.</p>
+  </description>
+
+  <categories>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>matrix</keyword>
+    <keyword>rain</keyword>
+    <keyword>overlay</keyword>
+    <keyword>screensaver</keyword>
+    <keyword>wayland</keyword>
+    <keyword>cosmic</keyword>
+  </keywords>
+
+  <launchable type="desktop-id">tech.i2r.matrixoverlay.desktop</launchable>
+
+  <!-- No local <icon> entries: a distro metainfo may only carry `stock` or
+       `remote` icons, and appstream-compose fills in the cached hicolor ones
+       from the icons this package installs. The remote copies are what a store
+       page shows before the catalogue has run that merge. -->
+  <icon type="remote" width="256" height="256">https://github.com/foomip/matrix-overlay/raw/main/assets/tech.i2r.matrixoverlay.svg</icon>
+  <icon type="remote" width="128" height="128">https://github.com/foomip/matrix-overlay/raw/main/assets/hicolor/128x128/apps/tech.i2r.matrixoverlay.png</icon>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Digital rain over a 16:9 screen, rendered by the app's own painter</caption>
+      <image>https://github.com/foomip/matrix-overlay/raw/main/assets/screenshot.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/foomip/matrix-overlay</url>
+  <url type="bugtracker">https://github.com/foomip/matrix-overlay/issues</url>
+  <url type="vcs-browser">https://github.com/foomip/matrix-overlay</url>
+
+  <developer id="tech.i2r">
+    <name>Nelson Pascoal</name>
+  </developer>
+  <update_contact>https://github.com/foomip/matrix-overlay/issues</update_contact>
+  <project_group>i2r.tech</project_group>
+
+  <provides>
+    <binary>matrix-rain</binary>
+  </provides>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-11-09">
+      <description>
+        <p>First packaged release: GPU-composited matrix rain over COSMIC/Wayland,
+        automatic GPU selection, live-reloaded config, and a cairo fallback for
+        compositors without a usable GL path.</p>
+      </description>
+    </release>
+  </releases>
+</component>

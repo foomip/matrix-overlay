@@ -71,11 +71,12 @@ case "$MODE" in
         fi
         rm -rf "$APP"
         mkdir -p "$APP" "$BIN"
-        # The build products come along only as sources: libmwl.so is rebuilt on
-        # first run (mwl.ensure_library), generated protocol code by build.sh.
+        # Generated protocol code never travels (build.sh regenerates it). A
+        # prebuilt libmwl.so and its content stamp do travel: the stamp is what
+        # proves the artifact matches these sources, and it is a content digest,
+        # so editing mwl.c still forces exactly one rebuild on the next launch.
         copy_sub "$ROOT" "$APP" \
             --exclude=./.git --exclude=./.pytest_cache --exclude='*/__pycache__' \
-            --exclude=./native/libmwl.so --exclude='./native/*.stamp' \
             --exclude='*-client-protocol.c' --exclude='*-client-protocol.h' \
             --exclude=./install.sh
         install -m 0755 "$ROOT/bin/matrix-rain" "$BIN/matrix-rain"
@@ -95,17 +96,36 @@ case "$MODE" in
             exit 0
         fi
         rm -rf "$LIB"
-        mkdir -p "$LIB" "$BIN" "$ETC"
+        mkdir -p "$LIB" "$BIN" "$ETC" "$D/usr/share/metainfo" "$D/usr/share/applications" \
+            "$D/usr/share/icons/hicolor/scalable/apps"
         # Named pieces, never "$ROOT" itself: a deb build dir is called
         # matrix-overlay-<version>, so the tree name cannot be the install name.
         copy_sub "$ROOT/matrix_overlay" "$LIB/matrix_overlay" --exclude='*/__pycache__'
+        # The prebuilt .so *and* its content stamp travel together: in a read-only
+        # /usr install the stamp is what proves the artifact matches the shipped
+        # sources, so the first launch does not go looking for a compiler.
         copy_sub "$ROOT/native" "$LIB/native" \
-            --exclude='*-client-protocol.c' --exclude='*-client-protocol.h' \
-            --exclude='./native/*.stamp'
-        copy_sub "$ROOT/bin" "$LIB/bin"
+            --exclude='*-client-protocol.c' --exclude='*-client-protocol.h'
+        # No $LIB/bin: /usr/bin/matrix-rain is the one entry point and the app
+        # never reads bin/. A second copy would be a second file to keep in step.
         copy_sub "$ROOT/LICENSE" "$LIB"
         copy_sub "$ROOT/README.md" "$LIB"
         install -m 0755 "$ROOT/bin/matrix-rain" "$BIN/matrix-rain"
+        # Desktop integration: this trio is what puts the app in COSMIC Store
+        # (metainfo + .desktop + hicolor icons). The component id, the .desktop
+        # basename and the icon basenames must all be the same string, because
+        # appstream-compose merges by basename.
+        ID=tech.i2r.matrixoverlay
+        SHARE="$D/usr/share"
+        install -m 0644 "$ROOT/assets/$ID.metainfo.xml" "$SHARE/metainfo/$ID.metainfo.xml"
+        install -m 0644 "$ROOT/assets/$ID.desktop" "$SHARE/applications/$ID.desktop"
+        install -m 0644 "$ROOT/assets/$ID.svg" "$SHARE/icons/hicolor/scalable/apps/$ID.svg"
+        for png in "$ROOT"/assets/hicolor/*/apps/$ID.png; do
+            [ -e "$png" ] || continue
+            size=$(basename "$(dirname "$(dirname "$png")")")
+            mkdir -p "$SHARE/icons/hicolor/$size/apps"
+            install -m 0644 "$png" "$SHARE/icons/hicolor/$size/apps/$ID.png"
+        done
         if [ ! -f "$ETC/config.toml" ]; then
             cat > "$ETC/config.toml" <<'EOF'
 # System-wide defaults for matrix-overlay.

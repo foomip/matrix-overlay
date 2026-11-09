@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Matrix rain overlay
+GenericName=Screen overlay
+Comment=Show Matrix-style digital rain over every screen
+Exec=matrix-rain
+TryExec=matrix-rain
+Icon=tech.i2r.matrixoverlay
+Terminal=false
+StartupNotify=false
+Categories=Utility;
+Keywords=matrix;rain;overlay;screensaver;wayland;cosmic;
+X-AppStream-ID=tech.i2r.matrixoverlay

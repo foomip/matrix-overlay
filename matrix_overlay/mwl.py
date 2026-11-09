@@ -125,6 +125,14 @@ def is_stale(lib: pathlib.Path, native: pathlib.Path) -> bool:
     stamp = stamp_path(lib)
     if stamp.exists():
         return stamp.read_text(encoding="utf-8").strip() != sources_digest(native)
+    # No stamp: the mtime rule only makes sense where we could rebuild in place.
+    # An unstamped artifact in a *read-only* tree is a packaged one - dpkg ships
+    # sources and .so from a single build and tar moves the mtimes around - so
+    # trusting it is the difference between a package that starts and one that
+    # quietly falls back to cairo because staging a compile needs a toolchain at
+    # run time.
+    if not os.access(native, os.W_OK):
+        return False
     source = native / "mwl.c"
     return source.exists() and source.stat().st_mtime > lib.stat().st_mtime
 

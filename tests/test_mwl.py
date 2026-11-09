@@ -15,7 +15,7 @@ import pytest
 
 from matrix_overlay import mwl as mwlmod
 from matrix_overlay.mwl import (ESCAPE_KEYSYM, Event, Mwl, MwlError, ensure_library,
-                                library_path, parse_event)
+                                is_stale, library_path, parse_event)
 
 
 # ------------------------------------------------------------------ events --
@@ -80,6 +80,25 @@ def test_ensure_library_rebuilds_when_the_source_is_newer(tmp_path):
     old = time.time() - 60
     os.utime(lib, (old, old))          # lib older than source
     assert ensure_library(lib).exists()
+
+
+def test_an_unstamped_artifact_in_a_read_only_tree_is_trusted(tmp_path):
+    """A packaged .so has no stamp of its own unless the packager wrote one, and
+    tar has shuffled its mtime relative to the sources. Rebuilding there would
+    mean staging sources and needing gcc on the customer's box, so it is trusted
+    instead - the cairo fallback for a stale package is a downgrade, not a fix."""
+    native = tmp_path / "native"
+    native.mkdir()
+    (native / "mwl.c").write_text("int x;\n", encoding="utf-8")
+    lib = native / "libmwl.so"
+    lib.write_bytes(b"packaged")
+    old = time.time() - 3600
+    os.utime(lib, (old, old))            # .so older than its sources
+    os.chmod(native, 0o555)
+    try:
+        assert is_stale(lib, native) is False
+    finally:
+        os.chmod(native, 0o755)
 
 
 def test_ensure_library_reports_compiler_output(tmp_path):

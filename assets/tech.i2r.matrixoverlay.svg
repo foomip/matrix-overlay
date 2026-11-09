@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Nelson Pascoal -->
+<!-- App icon: three cascading glyph columns, the middle head lit. Palette matches
+     config.py: head #d6ffd6, body #00b81f, dimmed tail toward transparent. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"
+     role="img" aria-label="Matrix rain overlay">
+  <rect width="256" height="256" rx="28" fill="#04070a"/>
+  <!-- the dim veil the overlay lays over the desktop: always *under* the rain -->
+  <rect width="256" height="256" rx="28" fill="#001105" fill-opacity="0.75"/>
+  <g font-family="'Noto Sans Mono CJK JP','DejaVu Sans Mono',monospace"
+     font-size="30" text-anchor="middle" fill="#00b81f">
+    <!-- left column: dim tail, brightening downward -->
+    <text x="52" y="46"  fill-opacity="0.12">7</text>
+    <text x="52" y="80"  fill-opacity="0.22">9</text>
+    <text x="52" y="114" fill-opacity="0.34">ア</text>
+    <text x="52" y="148" fill-opacity="0.5">メ</text>
+    <text x="52" y="182" fill-opacity="0.72">ク</text>
+    <text x="52" y="216" fill="#d6ffd6">リ</text>
+    <!-- middle column: the tall one, head near the bottom -->
+    <text x="128" y="30" fill-opacity="0.1">4</text>
+    <text x="128" y="64" fill-opacity="0.18">ナ</text>
+    <text x="128" y="98" fill-opacity="0.28">0</text>
+    <text x="128" y="132" fill-opacity="0.42">1</text>
+    <text x="128" y="166" fill-opacity="0.6">ラ</text>
+    <text x="128" y="200" fill-opacity="0.85">エ</text>
+    <text x="128" y="234" fill="#d6ffd6">M</text>
+    <!-- right column: shorter, head higher up -->
+    <text x="204" y="40"  fill-opacity="0.14">カ</text>
+    <text x="204" y="74"  fill-opacity="0.26">コ</text>
+    <text x="204" y="108" fill-opacity="0.45">ミ</text>
+    <text x="204" y="142" fill="#d6ffd6">シ</text>
+    <text x="204" y="176" fill-opacity="0.3">5</text>
+    <text x="204" y="210" fill-opacity="0.14">キ</text>
+  </g>
+</svg>
