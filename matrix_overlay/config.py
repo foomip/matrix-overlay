@@ -105,7 +105,7 @@ SPEC: tuple[Spec, ...] = (
     # cairo stays available, and cli falls back to it automatically if libmwl.so
     # cannot be built or the compositor has no layer shell for us.
     Spec("render.backend", Kind.CHOICE, "gl", ATLAS, None, ("cairo", "gl")),
-    Spec("render.render_node", Kind.NODE, "/dev/dri/renderD129", LIVE),
+    Spec("render.render_node", Kind.NODE, "", LIVE),  # "" = auto-detect (M2)
     # "" = auto: derive the EGL vendor from render_node's PCI vendor
     Spec("render.egl_vendor", Kind.STR, "", LIVE),
 )
@@ -339,8 +339,10 @@ def _coerce(spec: Spec, value: Any, out: list[str]) -> tuple[bool, Any]:
         if not isinstance(value, str):
             _warn(out, "bad_type", k, type(value).__name__)
             return False, None
-        if not Path(value).exists():
-            _warn(out, "unknown_render_node", k, value)  # kept: wrapper may run elsewhere
+        if value and not Path(value).exists():
+            # kept: the wrapper may run elsewhere, and cli's auto-detect ladder
+            # recovers from a node that is not on this box
+            _warn(out, "unknown_render_node", k, value)
         return True, value
     if isinstance(value, str):
         return True, value

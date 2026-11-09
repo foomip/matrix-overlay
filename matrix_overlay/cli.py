@@ -31,6 +31,7 @@ LOG_DIR = Path(os.environ.get("HOME", "")) / ".local/state/matrix-overlay"
 NVIDIA_JSON = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
 MESA_JSON = "/usr/share/glvnd/egl_vendor.d/50_mesa.json"
 AMD_VENDOR = "0x1002"
+NVIDIA_VENDOR = "0x10de"
 
 
 class UsageError(ValueError):
@@ -86,9 +87,41 @@ def config_path(opts: Options) -> Path:
 # --------------------------------------------------------- render-node env ---
 
 
-def _resolve_pci(render_node: str) -> str | None:
+# --------------------------------------------------------- render-node env ---
+
+SYSFS_DRM = Path("/sys/class/drm")
+SYSFS_PCI = Path("/sys/bus/pci/devices")
+
+
+@dataclasses.dataclass(frozen=True)
+class Sysfs:
+    """sysfs roots, injectable so the GPU selection is testable anywhere."""
+    drm: Path = SYSFS_DRM
+    pci: Path = SYSFS_PCI
+
+
+SYSFS = Sysfs()
+
+
+@dataclasses.dataclass(frozen=True)
+class RenderPlan:
+    """What the GPU decision was, not just the env it produced: a wrong pick on a
+    headless build box used to be invisible."""
+    env: dict[str, Any]
+    warnings: list[str]
+    source: dict[str, Any]
+
+
+def _read(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+
+
+def _pci_of(node: str, sysfs: Sysfs = SYSFS) -> str | None:
     """/dev/dri/renderD129 -> '0000:04:00.0' via the sysfs class link."""
-    device = Path("/sys/class/drm") / Path(render_node).name / "device"
+    device = sysfs.drm / Path(node).name / "device"
     try:
         if not device.exists():
             return None
@@ -97,40 +130,136 @@ def _resolve_pci(render_node: str) -> str | None:
         return None
 
 
-def _pci_vendor(pci: str) -> str | None:
+def _pci_vendor(pci: str, sysfs: Sysfs = SYSFS) -> str | None:
+    vendor = _read(sysfs.pci / pci / "vendor")
+    return vendor.lower() if vendor else None
+
+
+def _card_pci(card_dir: Path, sysfs: Sysfs) -> str | None:
     try:
-        return Path(f"/sys/bus/pci/devices/{pci}/vendor").read_text().strip()
+        if not (card_dir / "device").exists():
+            return None
+        return Path((card_dir / "device").resolve()).name
     except OSError:
         return None
 
 
-def _pci_drives_output(pci: str) -> bool:
-    """Does any *connected* DRM connector live on this PCI function?
-    (measured: only 0000:04:00.0 - the NVIDIA - has DP-4/DP-5 attached)"""
-    drm = Path("/sys/class/drm")
-    for status in sorted(drm.glob("card[0-9]*-*/status")):
-        try:
-            if status.read_text().strip() != "connected":
-                continue
-            card = status.parent.name.split("-")[0]
-            if Path(drm / card / "device").resolve().name == pci:
-                return True
-        except OSError:
+def _connected_counts(sysfs: Sysfs) -> dict[str, int]:
+    """PCI function -> count of *connected* DRM connectors on it.
+
+    Measured on widow: 0000:04:00.0 (RTX 3060) owns DP-5 + DP-6, 0000:11:00.0
+    (RX 7900 XTX) owns none. On grogu 0000:66:00.0 (Phoenix1) owns HDMI-A-1.
+    """
+    counts: dict[str, int] = {}
+    for status in sorted(sysfs.drm.glob("card[0-9]*-*/status")):
+        if _read(status) != "connected":
             continue
-    return False
+        card = sysfs.drm / status.parent.name.split("-")[0]
+        pci = _card_pci(card, sysfs)
+        if pci:
+            counts[pci] = counts.get(pci, 0) + 1
+    return counts
 
 
-def render_env(cfg: Config) -> tuple[dict[str, Any], list[str]]:
-    """Environment for the app process. '' means 'remove from the inherited env'.
+def _vram_total(pci: str | None, sysfs: Sysfs) -> int:
+    """amdgpu and nvidia both expose mem_info_vram_total on the PCI function."""
+    raw = _read(sysfs.pci / pci / "mem_info_vram_total") if pci else None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
 
-    With the GL backend (the default since M6) these are load-bearing: they choose
-    the EGL vendor and therefore the GPU that renders. Verified live - renderD129
-    reports "GL_RENDERER=NVIDIA GeForce RTX 3060", renderD128 reports "Radeon RX
-    7900 XTX (radeonsi...)". On the cairo fallback they only steer GDK's buffer
-    allocation, which is why they were diagnostic-only before M6 (plan 1.1).
+
+def _render_nodes(sysfs: Sysfs) -> list[str]:
+    names = [p.name for p in sysfs.drm.glob("renderD*") if p.is_dir()]
+    return sorted(names, key=lambda n: (len(n), n))
+
+
+def _node_exists(node: str, sysfs: Sysfs = SYSFS) -> bool:
+    """Checked through the sysfs root, so an injected topology is authoritative
+    (in production sysfs.drm *is* /sys/class/drm, and a /dev/dri node exists
+    exactly when its /sys/class/drm counterpart does)."""
+    if not node:
+        return False
+    try:
+        return (sysfs.drm / Path(node).name).exists()
+    except OSError:
+        return False
+
+
+def _candidates(sysfs: Sysfs) -> list[tuple[str, str]]:
+    """[(renderDnnn, pci)] for every render node mappable to a PCI function."""
+    out: list[tuple[str, str]] = []
+    for name in _render_nodes(sysfs):
+        pci = _pci_of(f"/dev/dri/{name}", sysfs)
+        if pci:
+            out.append((name, pci))
+    return out
+
+
+def pick_render_node(cfg_node: str, sysfs: Sysfs = SYSFS
+                     ) -> tuple[str | None, str, list[str]]:
+    """The M2 selection ladder. Returns (node, reason, warnings).
+
+    1. an explicit node that exists always wins;
+    2. an explicit node that does not exist is reported and auto resumes (a
+       widow-only default must never hard-fail a different box);
+    3. auto: the card owning the most *connected* DRM outputs;
+    4. tie-break: most VRAM, then lowest PCI address - never the lowest render
+       node number, which on widow would pick the off-display XTX (measured
+       17.3 fps against 22.0 on the card that actually drives the screens).
+       amdgpu exposes mem_info_vram_total; the NVIDIA driver exposes no mem_info_*
+       on widow, so an unreadable size means 0 (unknown) and the connected-output
+       step is the real decider on a mixed box;
+    5. nothing connected at all: biggest GPU, flagged off_display;
+    6. no render nodes (headless, container): no node, no pin.
     """
     warnings: list[str] = []
-    node = cfg.render.render_node
+    if cfg_node:
+        if _node_exists(cfg_node, sysfs):
+            return cfg_node, "explicit", warnings
+        warnings.append(f"render_node_missing:{cfg_node} (auto-detecting)")
+    cands = _candidates(sysfs)
+    if not cands:
+        warnings.append("no_render_node: no /dev/dri/renderD* maps to a PCI function")
+        return None, "no_render_node", warnings
+    counts = _connected_counts(sysfs)
+    best = max(counts.get(pci, 0) for _, pci in cands)
+    if best > 0:
+        pool = [(n, p) for n, p in cands if counts.get(p, 0) == best]
+        reason = "auto_connected"
+    else:
+        pool, reason = cands, "auto_off_display"
+    if len({p for _, p in pool}) > 1:
+        warnings.append("ambiguous_gpu:" + ",".join(sorted({p for _, p in pool})))
+    node, _pci = sorted(pool, key=lambda item: (-_vram_total(item[1], sysfs),
+                                                item[1]))[0]
+    return f"/dev/dri/{node}", reason, warnings
+
+
+def render_plan(cfg: Config, sysfs: Sysfs | None = None) -> RenderPlan:
+    """Environment for the app process, plus the GPU decision that made it.
+
+    '' in the env dict means 'remove from the inherited env'. On the gl backend
+    (default since M6) these variables are load-bearing: they choose the EGL
+    vendor and therefore the GPU that renders. Verified live on widow -
+    renderD129 answers "GL_RENDERER=NVIDIA GeForce RTX 3060", renderD128 answers
+    "Radeon RX 7900 XTX (radeonsi, navi31, ACO)" and presents slower because it
+    drives no connected output. A glvnd file that does not exist must never be
+    pinned: glvnd then loads no vendor at all and EGL dies with NOT_INITIALIZED
+    (0x3001) at native/mwl.c:532.
+    """
+    sysfs = sysfs or SYSFS
+    node, reason, warnings = pick_render_node(cfg.render.render_node, sysfs)
+    cands = _candidates(sysfs)
+    counts = _connected_counts(sysfs)
+    pci = _pci_of(node, sysfs) if node else None
+    vendor_id = _pci_vendor(pci, sysfs) if pci else None
+    vendor = {AMD_VENDOR: "amd", NVIDIA_VENDOR: "nvidia"}.get(vendor_id or "",
+                                                               "unknown")
+    connected = counts.get(pci, 0) if pci else 0
+    multi_gpu = len({p for _, p in cands}) > 1
+
     env: dict[str, Any] = {
         "GDK_BACKEND": "wayland",
         "DISPLAY": "",                    # never let GDK pick Xwayland (:1 exists)
@@ -139,24 +268,46 @@ def render_env(cfg: Config) -> tuple[dict[str, Any], list[str]]:
         "MATRIX_OVERLAY_CONFIG": str(config_path(Options())),
         "LIBGL_ALWAYS_SOFTWARE": "",
     }
-    pci = _resolve_pci(node)
-    off_display = bool(pci) and not _pci_drives_output(pci)
-    vendor = _pci_vendor(pci) if pci else None
-    if off_display:
-        warnings.append(f"off_display_gpu:{node} (pci {pci}) drives no connected output; "
-                        "expect a cross-device copy path")
-    if off_display or (vendor == AMD_VENDOR):
-        env["__EGL_VENDOR_LIBRARY_FILENAMES"] = cfg.render.egl_vendor or MESA_JSON
-        env["DRI_PRIME"] = ("pci-" + pci.replace(":", "_").replace(".", "_")
-                            if pci else "1")
+    json_path = ""
+    if node:
+        if cfg.render.egl_vendor:
+            json_path = cfg.render.egl_vendor
+            if vendor == "nvidia" and json_path.endswith("50_mesa.json"):
+                warnings.append(f"egl_vendor_mismatch:{node} is nvidia but mesa was requested")
+        else:
+            default = MESA_JSON if vendor == "amd" else NVIDIA_JSON
+            if Path(default).exists():
+                json_path = default
+            else:
+                warnings.append(f"glvnd_vendor_json_missing:{default} "
+                                "(leaving glvnd to auto-discover)")
+        if json_path:
+            env["__EGL_VENDOR_LIBRARY_FILENAMES"] = json_path
+    if pci and connected == 0:
+        warnings.append(f"off_display_gpu:{node} (pci {pci}) drives no connected "
+                        "output; expect a cross-device copy path")
+    if vendor == "amd":
         env["MESA_LOADER_DRIVER_OVERRIDE"] = "radeonsi"
-    else:
-        env["__EGL_VENDOR_LIBRARY_FILENAMES"] = cfg.render.egl_vendor or NVIDIA_JSON
-        if cfg.render.egl_vendor and cfg.render.egl_vendor.endswith("50_mesa.json"):
-            warnings.append(f"egl_vendor_mismatch:{node} is nvidia but mesa was requested")
-    if not Path(node).exists():
-        warnings.append(f"unknown_render_node:{node}")
-    return env, warnings
+    if pci and connected == 0 and multi_gpu:
+        env["DRI_PRIME"] = "pci-" + pci.replace(":", "_").replace(".", "_")
+    source = {
+        "node": node, "requested": cfg.render.render_node, "pci": pci or "",
+        "vendor": vendor, "vendor_id": vendor_id or "",
+        "json": json_path, "reason": reason, "connected": connected,
+        "gpus": len({p for _, p in cands}), "vram_total": _vram_total(pci, sysfs),
+    }
+    return RenderPlan(env=env, warnings=warnings, source=source)
+
+
+def render_env(cfg: Config, sysfs: Sysfs | None = None) -> tuple[dict[str, Any], list[str]]:
+    """Back-compatible view of render_plan: (env, warnings)."""
+    plan = render_plan(cfg, sysfs)
+    return plan.env, plan.warnings
+
+
+def render_source(cfg: Config, sysfs: Sysfs | None = None) -> dict[str, Any]:
+    """Which GPU was chosen and why - the part --diagnose used not to show."""
+    return render_plan(cfg, sysfs).source
 
 
 def apply_env(env: dict[str, Any]) -> None:
@@ -340,6 +491,7 @@ def glib_signal_callback(handler: Callable[[], Any]) -> Callable[[Any], bool]:
 def diagnose(store: ConfigStore, caps) -> dict[str, Any]:
     blockers: list[str] = []
     cfg = store.load()
+    plan = render_plan(cfg)
     if store.rejected:
         blockers.append("config_unreadable:" + ";".join(store.warnings))
     if not caps.layer_shell_supported:
@@ -366,8 +518,9 @@ def diagnose(store: ConfigStore, caps) -> dict[str, Any]:
         "monitor_scales": list(caps.monitor_scales),
         "backend": cfg.render.backend,
         "config_path": str(store.path),
-        "render": render_env(cfg)[0],
-        "render_warnings": render_env(cfg)[1],
+        "render": plan.env,
+        "render_warnings": plan.warnings,
+        "render_source": plan.source,
     }
 
 
@@ -682,10 +835,11 @@ def run(opts: Options) -> int:
         pass
 
     provisional = ConfigStore(config_path(opts), _neutral_caps()).load()
-    env, warnings = render_env(provisional)
-    for warning in warnings:
+    plan = render_plan(provisional)
+    for warning in plan.warnings:
         log_line(f"render_env {warning}")
-    apply_env(env)
+    log_line(f"render_source {as_json(plan.source)}")
+    apply_env(plan.env)
 
     Gtk, Gdk, GLib, ls = init_gtk()
     probe = diagnose_probe(ls)

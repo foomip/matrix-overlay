@@ -58,34 +58,39 @@ def test_unknown_flag_is_a_usage_error():
 
 
 # ------------------------------------------------------- render node pinning ---
+# M2: these used to read the *real* /sys of the machine running them (widow), so
+# they could not pass on any other host. They now run on the fake sysfs topologies
+# in conftest; cli's own auto-detection ladder is covered in test_render_select.py.
 
 
-def test_nvidia_node_selects_the_nvidia_egl_vendor():
-    cfg = load_default()  # /dev/dri/renderD129 = NVIDIA, drives both DP outputs
-    env, warnings = cli.render_env(cfg)
+def test_explicit_nvidia_node_selects_the_nvidia_egl_vendor(glvnd, mk_sysfs):
+    glvnd()
+    cfg = cli.default_flat_with(render_node="/dev/dri/renderD129").cfg
+    env, warnings = cli.render_env(cfg, sysfs=mk_sysfs("nvidia"))
     assert env["__EGL_VENDOR_LIBRARY_FILENAMES"].endswith("10_nvidia.json")
     assert env["GDK_BACKEND"] == "wayland"
     assert "DRI_PRIME" not in env
     assert not any("off_display" in w for w in warnings)
 
 
-def test_amd_node_is_allowed_but_flagged_as_off_display():
-    """renderD128 = RX 7900 XTX with no connected outputs (measured at M0)."""
-    flat = cli.default_flat_with(render_node="/dev/dri/renderD128")
-    env, warnings = cli.render_env(flat.cfg)
+def test_amd_node_is_allowed_but_flagged_as_off_display(glvnd, mk_sysfs):
+    """widow's renderD128 = RX 7900 XTX with no connected outputs (measured M0)."""
+    glvnd()
+    cfg = cli.default_flat_with(render_node="/dev/dri/renderD128").cfg
+    env, warnings = cli.render_env(cfg, sysfs=mk_sysfs("offdisplay"))
     assert env["DRI_PRIME"] == "pci-0000_11_00_0"
     assert env["MESA_LOADER_DRIVER_OVERRIDE"] == "radeonsi"
     assert env["__EGL_VENDOR_LIBRARY_FILENAMES"].endswith("50_mesa.json")
     assert any("off_display_gpu" in w for w in warnings)
 
 
-def test_software_rendering_is_never_forced_on():
-    env, _ = cli.render_env(load_default())
+def test_software_rendering_is_never_forced_on(glvnd, mk_sysfs):
+    env, _ = cli.render_env(load_default(), sysfs=mk_sysfs("software"))
     assert env.get("LIBGL_ALWAYS_SOFTWARE") in (None, "", "0")
 
 
-def test_display_var_is_dropped_so_gdk_cannot_fall_back_to_x11():
-    env, _ = cli.render_env(load_default())
+def test_display_var_is_dropped_so_gdk_cannot_fall_back_to_x11(glvnd, mk_sysfs):
+    env, _ = cli.render_env(load_default(), sysfs=mk_sysfs("no-x11"))
     assert env["DISPLAY"] == ""
 
 

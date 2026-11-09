@@ -49,14 +49,22 @@ def test_defaults_match_approved_schema(mkstore):
     assert cfg.input.keyboard_mode == "exclusive"
     assert cfg.input.stop_key == "Escape"
     assert cfg.perf.guard is True
-    assert cfg.render.render_node == "/dev/dri/renderD129"
+    # M2: "" means auto-detect. A hardcoded node is a widow-shaped default that
+    # breaks every other host (grogu has only renderD128).
+    assert cfg.render.render_node == ""
+
+
+def test_auto_render_node_default_loads_without_warnings(mkstore, warnings_of):
+    store = mkstore("[render]\nrender_node = \"\"\n")
+    assert store.load().render.render_node == ""
+    assert warnings_of(store) == []
 
 
 def test_serialized_defaults_round_trip_without_warnings(mkstore, warnings_of):
     store = mkstore(load_default().as_toml())
     cfg = store.load()
     assert cfg.world.fps == 22
-    assert cfg.render.render_node == "/dev/dri/renderD129"
+    assert cfg.render.render_node == ""
     assert warnings_of(store) == []
 
 
