@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: MIT */
+/* SPDX-FileCopyrightText: 2026 Nelson Pascoal */
 /* mwl.h - C API of the raw Wayland + EGL/GLES2 presentation layer.
  *
  * Bound from Python by matrix_overlay/mwl.py via ctypes. All calls are

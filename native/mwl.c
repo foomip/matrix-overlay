@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: MIT */
+/* SPDX-FileCopyrightText: 2026 Nelson Pascoal */
 /* mwl.c - raw Wayland + EGL/GLES2 presentation layer for matrix-overlay.
  *
  * Why this exists: the GTK3/GDK path copied a ~74 MB shm buffer per frame

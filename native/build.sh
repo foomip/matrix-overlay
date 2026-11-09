@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 # Build libmwl.so: the raw Wayland + EGL/GLES2 presentation layer.
 #
 # Replaces the GTK3/GDK paint path, whose fixed per-frame cost (a ~74 MB shm
