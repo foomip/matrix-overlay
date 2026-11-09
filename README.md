@@ -14,7 +14,7 @@ config watching. Classic X11 screensavers (`xmatrix`, `glmatrix`,
 
 | Path | Role |
 |---|---|
-| `~/.local/bin/matrix-rain` | wrapper: pins interpreter/env, preflight, exec |
+| `~/.local/bin/matrix-rain` (installed copy of `bin/matrix-rain`) | wrapper: pins interpreter/env, runs `--preflight`, execs the app |
 | `~/.local/share/matrix-overlay/matrix_overlay/` | the app (`cli` `app` `world` `atlas` `render` `surface` `config`) |
 | `…/matrix_overlay/glpaint.py` | pure GL packing: atlas layout, UV tables, cell batches, geometry (unit-tested, needs no display) |
 | `…/matrix_overlay/mwl.py` | ctypes bindings for the native library (builds it on first run) |
@@ -45,14 +45,14 @@ tail -f $HOME/.local/state/matrix-overlay/matrix-rain.log
 |---|---|
 | darker / barely dimmed | `[look] dim_alpha` 0..0.95 |
 | faster / slower rain | `[world] fall_speed`, `fps` |
-| more / fewer streams | `stream_density` |
+| more / fewer streams | `stream_density` (a per-column spawn probability, so it is capped at 1.0: a larger number is clamped, not denser) |
 | longer comet tails | `tail_length`, `fade_rate` |
 | bigger glyphs | `cell_size` (also the main CPU lever: fewer, larger cells) |
 | the white-hot head | `head_color` (with `[look.glow]`) |
 | katakana vs ASCII vs your own glyphs | `glyph_set`, `custom_glyphs` |
 | auto-stop after a while | `[world] idle_auto_stop_seconds` |
 | painter: GPU or GTK/Cairo | `[render] backend = "gl"` (default) / `"cairo"` |
-| which GPU renders | `[render] render_node` (authoritative on the gl backend) |
+| which GPU renders | `[render] render_node` (`""` = auto-detect, the default; an explicit node still wins) |
 
 Bad values are clamped, unknown keys ignored, and an unparseable file is rejected
 while the running show keeps its last-good config — a typo can never drop the veil.
@@ -93,7 +93,8 @@ Remaining cost is the **Python simulation** (~10 ms/frame at ~2000 cells); lower
 ## Diagnostics
 
 ```bash
-/usr/bin/python3 -m matrix_overlay --diagnose       # caps, protocol, env, blockers
+/usr/bin/python3 -m matrix_overlay --diagnose       # caps, protocol, env, blockers, render_source
+/usr/bin/python3 -m matrix_overlay --preflight        # can any backend run here? (no surfaces)
 /usr/bin/python3 -m matrix_overlay --monitor-list   # what "listed" can match
 /usr/bin/python3 -m matrix_overlay --self-test      # render frames headlessly, hash them
 /usr/bin/python3 -m matrix_overlay --status         # live JSON (tick, fps_actual, cells)
@@ -109,7 +110,7 @@ connector name at all. On the `cairo` backend it matches the monitor **model**
 
 ```bash
 cd ~/.local/share/matrix-overlay
-/usr/bin/python3 -m pytest -q                     # 280 unit tests, no compositor needed
+/usr/bin/python3 -m pytest -q                     # 311 unit tests, no compositor needed
 MATRIX_OVERLAY_LIVE=1 /usr/bin/python3 -m pytest -q -s tests/live_smoke.py   # 3 live
 ```
 
@@ -138,16 +139,43 @@ asdf shims on Python 3.14 that have no `gi` (conftest aborts loudly if you don't
 | headroom | 60.0 fps with 20 000 quads per output at 9.0 % CPU |
 | `[perf] guard` | keeps the promise: degrades `fps` toward `min_fps` when frames overrun, and never blurs glyphs (`render_scale` untouched — the cost is not pixel-bound) |
 
-`[render] render_node` is authoritative on the gl backend, verified live — the
-config key selects the physical GPU:
+### Which GPU renders (`[render] render_node`)
+
+`render_node = ""` (the default since M2) auto-detects. The ladder, in order:
+
+1. an explicit node that exists on this host always wins;
+2. an explicit node that does not exist logs `render_node_missing` and auto
+  resumes, so a config copied from another box self-heals instead of failing;
+3. otherwise the card owning the most **connected** DRM connectors wins;
+4. tie-break: most VRAM (`mem_info_vram_total`), then PCI address. The render
+  node *number* is never the decider: on widow the lower number is the
+  off-display XTX, which measured 17.3 fps against 22.0;
+5. no connected output anywhere: biggest GPU, with an `off_display_gpu` warning;
+6. no render nodes at all: no node and no vendor pin.
+
+The EGL vendor is then pinned **only to a glvnd file that exists**; if the
+expected one is absent the variable is left unset (glvnd auto-discovers) and
+`glvnd_vendor_json_missing` is logged. Pinning a path that does not exist makes
+glvnd load no vendor at all, which is how an AMD-only box dies with
+`eglGetDisplay failed: 0x3001`. `DRI_PRIME` is set only for a multi-GPU box whose
+chosen node is off-display; `MESA_LOADER_DRIVER_OVERRIDE=radeonsi` only for a
+resolved AMD vendor.
+
+`--diagnose` reports the decision, not just the env:
+`render_source` carries `node`, `requested`, `pci`, `vendor`, `json`, `reason`,
+`connected`, `gpus`, `vram_total`. The same object is logged at start as
+`render_source ...`.
+
+The config key still selects the physical GPU explicitly, verified live:
 
 | `render_node` | `GL_RENDERER` reported |
 |---|---|
-| `/dev/dri/renderD129` (default) | `NVIDIA GeForce RTX 3060/PCIe/SSE2` (OpenGL ES 3.2, NVIDIA 580.173.02) |
+| `/dev/dri/renderD129` (what auto-detect picks here) | `NVIDIA GeForce RTX 3060/PCIe/SSE2` (OpenGL ES 3.2, NVIDIA 595.104.02 as of 2026-11-09) |
 | `/dev/dri/renderD128` | `Radeon RX 7900 XTX (radeonsi, navi31, ACO)` (Mesa 26.1.6) + an `off_display_gpu` warning |
 
 The AMD node renders but presents slower (17.3 fps: it drives no connected output,
-so buffers must cross devices), which is why NVIDIA stays the default here.
+so buffers must cross devices), which is why auto-detect does not pick it here
+(and why `render_node` must stay overridable for a box wired the other way).
 
 Two scheduling invariants the measurements established, both regression-tested:
 the frame timer must subtract work done *inside* the tick (GL presents in-tick while

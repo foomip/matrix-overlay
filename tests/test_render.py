@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M3b RED: dirty-cell Cairo compositor.
 
 The contracts under test (plan C4, D1.6, T5):

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M6-N2 RED: pure GL packing helpers (no display, no GL context).
 
 Contracts under test:

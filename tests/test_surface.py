@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M4a RED: layer-shell wiring and monitor selection.
 
 The C5 call *order* is a correctness requirement on cosmic-comp: EXCLUSIVE

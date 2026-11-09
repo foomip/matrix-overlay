@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M2 RED: render-node auto-detection and EGL vendor pinning, host-portable.
 
 The original pinning (plan 1.1, measured at M0) was correct but *widow-shaped*:

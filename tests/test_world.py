@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M2 RED: pure simulation. world.py must not import Gtk/Gdk (plan 1.5).
 
 Encodes: D3 (continuous column grid + row-phase alignment across the seam),

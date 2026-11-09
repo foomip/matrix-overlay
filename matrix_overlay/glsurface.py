@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """glsurface: the GL presentation backend - counterpart of surface.OutputSurface.
 
 It implements the same contract app.py already consumes (show/queue/present/

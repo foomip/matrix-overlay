@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M1 RED: config parsing, validation, clamping and hot-reload classification.
 
 Contract sources: plan C3 (reload classes L1-L4, last-good on rejection,

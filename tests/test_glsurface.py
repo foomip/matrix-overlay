@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M6-N3 RED: GL surface + runtime, against a recording fake handle.
 
 The GL backend's contract is the *same* one app.py already consumes from

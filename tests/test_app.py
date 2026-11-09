@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M4b RED: lifecycle, tick scheduling, hot-reload dispatch, perf guard.
 
 Everything compositor-facing is injected, so the state machine in plan 1.3 is

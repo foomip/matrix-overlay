@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """The Matrix rain simulation. Pure: no Gtk, no Gdk, no cairo (plan 1.5).
 
 `World.step()` returns a new state plus a `FrameDelta` of dirty cells; all

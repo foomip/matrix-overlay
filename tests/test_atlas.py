@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M3a RED: GlyphAtlas - bake every (glyph, brightness) pair once at startup.
 
 Headless by construction: PangoCairo renders into ImageSurfaces, so no

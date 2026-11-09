@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """glpaint: pure packing helpers for the GL backend - no display, no context.
 
 Kept free of ctypes/GL so the whole geometry contract is unit-testable (plan 1.5

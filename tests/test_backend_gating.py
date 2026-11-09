@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M2 RED: backend-aware dependency gating.
 
 Two facts were conflated. The GL backend is a native Wayland client: it needs

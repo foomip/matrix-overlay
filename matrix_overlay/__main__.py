@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """Entry point: `python3 -m matrix_overlay` (invoked by ~/.local/bin/matrix-rain)."""
 from __future__ import annotations
 

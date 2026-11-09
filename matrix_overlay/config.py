@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """Config loading, validation and hot-reload classification.
 
 Contract: plan C3. The config file is read-only to the app - this module never

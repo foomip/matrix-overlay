@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """CLI, single-instance toggle and environment pinning (plan C2).
 
 Kept import-light on purpose: nothing in this module needs Gtk, so the parts

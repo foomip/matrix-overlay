@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M4c RED: CLI surface, single-instance toggle, render-node env pinning.
 
 Plan C2. The lock escalation ladder moved out of bash into here so it is

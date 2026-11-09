@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """M6-N3 RED: ctypes binding layer for libmwl.so.
 
 Nothing here needs a compositor: dlopen + symbol wiring + event parsing + the

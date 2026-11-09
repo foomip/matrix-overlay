@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """Live smoke test - the only guard that catches compositor/wiring breakage.
 
 Skipped unless MATRIX_OVERLAY_LIVE=1 (it maps real overlay surfaces on screen).

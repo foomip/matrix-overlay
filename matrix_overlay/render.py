@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """Dirty-cell Cairo compositor (plan 1.4 / C4).
 
 Geometry is in *logical* pixels - the coordinate space GTK3 hands the `draw`

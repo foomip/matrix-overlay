@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """Layer-shell surfaces: veil CSS, the C5 call sequence, monitor selection.
 
 Split so the parts that decide compositor behaviour are testable with injected

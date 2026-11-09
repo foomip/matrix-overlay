@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """mwl: ctypes bindings for native/libmwl.so (raw Wayland + EGL/GLES2).
 
 Kept deliberately thin: this module owns symbol wiring, event parsing and the

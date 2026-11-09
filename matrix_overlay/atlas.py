@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """GlyphAtlas: bake every (glyph, brightness) pair once, blit forever.
 
 Plan 2.4 / C4: per-frame Pango or Cairo text calls must be zero. Rendering uses

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """Shared test fixtures.
 
 T14 guard: the asdf shims shadow python3/pytest on PATH (verified: `command -v

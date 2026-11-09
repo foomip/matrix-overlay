@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 """Lifecycle: the 1.3 state machine, the fixed-cadence tick, reload dispatch
 and the [perf] guard ladder.
 
