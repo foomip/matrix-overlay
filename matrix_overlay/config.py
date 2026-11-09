@@ -432,6 +432,7 @@ class ConfigStore:
         self.warnings: tuple[str, ...] = ()
         self.rejected = False
         self._good: Config | None = None
+        self._had_file = False
 
     @property
     def config(self) -> Config:
@@ -440,7 +441,19 @@ class ConfigStore:
     def load(self) -> Config:
         try:
             raw = tomllib.loads(self.path.read_text(encoding="utf-8"))
+            self._had_file = True
         except FileNotFoundError:
+            if self._had_file:
+                # The file went away *after* we had read one: a cleanup, an
+                # editor's atomic save that raced us, or a config in /tmp that
+                # someone deleted while the show was up. Falling back to defaults
+                # there silently drops live tuning - measured on grogu, where it
+                # reset [world] idle_auto_stop_seconds from 6 to 0, i.e. it
+                # removed the safety net for an unattended overlay. Keep the last
+                # good config and say so, exactly as a typo would.
+                self.warnings = (f"config_missing_kept_last_good:{self.path}",)
+                self.rejected = True
+                return self.config
             cfg, self.warnings, self.rejected = load_default(), (), False
             self._good = cfg
             return cfg

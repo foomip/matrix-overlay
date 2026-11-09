@@ -70,6 +70,33 @@ def test_serialized_defaults_round_trip_without_warnings(mkstore, warnings_of):
     assert warnings_of(store) == []
 
 
+def test_config_deleted_under_a_running_show_keeps_last_good(mkstore, warnings_of):
+    """Found on grogu (M3): the probe config in /tmp was deleted while the show
+    was up, and every live value silently reset to defaults - including
+    [world] idle_auto_stop_seconds, which went 6 -> 0 (never), i.e. the safety
+    net for an unattended overlay was the thing that vanished. Defaults are only
+    legitimate when there was never a file: once a file has been read, losing it
+    is a rejection, like a typo is."""
+    store = mkstore("[world]\nfps = 30\nidle_auto_stop_seconds = 6\n")
+    good = store.load()
+    assert good.world.idle_auto_stop_seconds == 6
+    store.path.unlink()
+    kept = store.load()
+    assert kept == good
+    assert kept.world.idle_auto_stop_seconds == 6
+    assert store.rejected is True
+    assert "config_missing_kept_last_good" in warnings_of(store)
+
+
+def test_no_config_file_ever_is_not_a_rejection(mkstore, warnings_of):
+    """The other half: a fresh box with no config.toml must stay silent."""
+    store = mkstore(exists=False)
+    cfg = store.load()
+    assert cfg.world.fps == 22
+    assert store.rejected is False
+    assert warnings_of(store) == []
+
+
 def test_malformed_toml_keeps_last_good(mkstore, warnings_of):
     store = mkstore('[world]\nfps = 24\n')
     good = store.load()
