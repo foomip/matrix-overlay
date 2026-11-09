@@ -20,3 +20,4 @@ debian/matrix-overlay/
 *.deb
 *.buildinfo
 *.changes
+native/libmwl.so.stamp
