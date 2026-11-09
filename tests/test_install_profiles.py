@@ -10,6 +10,7 @@ the native library must be findable when the install tree is read-only.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -270,6 +271,30 @@ def test_self_test_names_the_missing_optional_dependency(tmp_path, monkeypatch, 
     assert rc == cli.EXIT_DIAGNOSE
     err = capsys.readouterr().err
     assert "python3-gi-cairo" in err and "preflight" in err
+
+
+REAL_LIB = REPO / "native/libmwl.so"
+
+
+@pytest.mark.skipif(not REAL_LIB.exists(), reason="no real libmwl.so to stage as a fixture")
+def test_diagnose_reports_a_packaged_profile_that_only_needs_a_build(tmp_path,
+                                                                     monkeypatch):
+    """The read-only-/usr case, end to end: an install tree with sources but no
+    .so must not be reported as broken. The probe compiles it and answers with
+    real build state ('no build permitted' used to make a healthy AMD box look
+    unusable)."""
+    from matrix_overlay import mwl as m
+
+    tree = tmp_path / "usr/lib/matrix-overlay/native"
+    tree.mkdir(parents=True)
+    for name in ("mwl.c", "mwl.h", "build.sh"):
+        shutil.copy2(REPO / "native" / name, tree / name)
+    for xml in (REPO / "native").glob("*.xml"):
+        shutil.copy2(xml, tree / xml.name)
+    monkeypatch.setattr(m, "DEFAULT_LIB", tree / "libmwl.so")
+    report = cli.gl_status()
+    assert report["built"] is True, report
+    assert "no build permitted" not in str(report)
 
 
 def test_config_module_default_matches_the_new_chain(tmp_path, monkeypatch):

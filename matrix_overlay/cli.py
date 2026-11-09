@@ -792,15 +792,26 @@ def gl_status() -> dict[str, Any]:
     """--diagnose report for the native layer: build state, protocol versions,
     outputs and the GL strings that prove [render] render_node was honoured.
 
-    Non-destructive: no rebuild, no keyboard grab, and the probe surface is
-    destroyed without ever attaching a buffer, so nothing flashes on screen.
+    Nothing the user can perceive happens here: no buffer is ever attached to the
+    probe surface, no keyboard is grabbed, and the surface is destroyed before the
+    call returns. Compiling libmwl.so *is* allowed - a packaged profile that
+    ships no prebuilt .so in a read-only tree could not report its real GL strings
+    otherwise, and the compile is exactly what the first launch does anyway
+    (measured on grogu during M4: the old "no build permitted" probe reported a
+    healthy AMD install as broken).
+
+    The handle is created with rebuild=False so a stale artefact is compiled once,
+    by us, with its output in the log, rather than inside ctypes loading.
     """
     from .mwl import Mwl, MwlError, ensure_library, library_path
 
     path = library_path()
     out: dict[str, Any] = {"library": str(path), "built": path.exists()}
     try:
-        handle = Mwl(ensure_library(path, rebuild=False), rebuild=False)
+        path = ensure_library(path)     # may compile; the answer is what we report
+        out["library"] = str(path)
+        out["built"] = path.exists()
+        handle = Mwl(path, rebuild=False)
     except MwlError as exc:
         out["error"] = str(exc)
         return out
