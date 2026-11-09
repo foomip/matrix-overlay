@@ -149,6 +149,28 @@ def test_sources_are_copied_into_the_writable_dir_and_built_there(tmp_path,
     assert (native / "mwl.c").exists() and (native / "build.sh").exists()
 
 
+def test_ensure_library_stages_from_the_install_tree_when_it_is_read_only(tmp_path,
+                                                                          monkeypatch):
+    """End to end: a packaged tree with no prebuilt .so and no write permission
+    must still build - into the state dir, from a copy of the install sources."""
+    ro = tmp_path / "usr/lib/matrix-overlay/native"
+    ro.mkdir(parents=True)
+    (ro / "mwl.c").write_text("int x;\n", encoding="utf-8")
+    (ro / "build.sh").write_text("#!/bin/sh\ntouch libmwl.so\n", encoding="utf-8")
+    os.chmod(ro / "build.sh", 0o755)
+    monkeypatch.setattr(mwl_mod, "DEFAULT_LIB", ro / "libmwl.so")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    os.chmod(ro, 0o555)
+    try:
+        lib = mwl_mod.ensure_library()
+    finally:
+        os.chmod(ro, 0o755)
+    staged = tmp_path / "state/matrix-overlay/native"
+    assert lib == staged / "libmwl.so" and lib.exists()
+    assert (staged / "mwl.c").exists()
+    assert mwl_mod.is_stale(lib, staged) is False      # stamped: no rebuild loop
+
+
 def test_a_stamp_stops_a_rebuild_loop_for_copied_sources(tmp_path):
     """Copied sources get a fresh mtime, so an mtime-only rule would rebuild on
     every launch forever. With a content stamp, identical sources are current."""

@@ -139,10 +139,17 @@ def ensure_library(path: pathlib.Path | None = None, *, rebuild: bool = True) ->
         if not lib.exists():
             raise MwlError(f"{lib} not found (and no build permitted)")
         return lib
-    if not (native / "mwl.c").exists():
-        raise MwlError(f"{lib} not found (and no {native / 'mwl.c'} to build it from)")
-    if not os.access(native, os.W_OK):
-        native = stage_build_dir(native)
+    # Where the sources live. If the ladder redirected the library path into a
+    # writable state dir, the sources are still in the install tree (that is what
+    # DEFAULT_LIB points at), and looking for them next to the redirected .so is
+    # how a packaged install fails with "no mwl.c to build it from".
+    source_native = native if (native / "mwl.c").exists() else DEFAULT_LIB.parent
+    if not (source_native / "mwl.c").exists():
+        raise MwlError(f"{lib} not found (and no {source_native / 'mwl.c'} to build it from)")
+    if native != source_native or not os.access(native, os.W_OK):
+        # build.sh compiles in place, so the build needs a writable dir holding a
+        # copy of the sources: a read-only /usr install can never host the compile.
+        native = stage_build_dir(source_native)
         lib = native / "libmwl.so"
     script = native / "build.sh"
     if not script.exists():
