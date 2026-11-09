@@ -39,6 +39,7 @@ def store(tmp_path, body=""):
     (["--status"], "status"),
     (["--print-default-config"], "print-default-config"),
     (["--diagnose"], "diagnose"),
+    (["--preflight"], "preflight"),
     (["--monitor-list"], "monitor-list"),
     (["--self-test"], "self-test"),
 ])

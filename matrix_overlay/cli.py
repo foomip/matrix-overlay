@@ -13,6 +13,7 @@ import errno
 import fcntl
 import json
 import os
+import shutil
 import signal
 import sys
 import time
@@ -46,31 +47,27 @@ class Options:
     config_env: bool = False
 
 
+MODE_FLAGS = ("preflight", "print-default-config", "self-test", "monitor-list",
+              "diagnose", "status", "stop")
+
+
 def parse_args(argv: list[str]) -> Options:
     parser = argparse.ArgumentParser(prog="matrix-rain", add_help=True)
     parser.add_argument("--config", default=None)
     parser.add_argument("--geometry", default=None)
-    parser.add_argument("--stop", action="store_true")
-    parser.add_argument("--status", action="store_true")
-    parser.add_argument("--diagnose", action="store_true")
-    parser.add_argument("--monitor-list", action="store_true")
-    parser.add_argument("--self-test", action="store_true")
-    parser.add_argument("--print-default-config", action="store_true")
+    for mode in MODE_FLAGS:
+        parser.add_argument("--" + mode, action="store_true")
     parser.exit_on_error = True  # argparse>=3.9: raise instead of sys.exit
     try:
         ns = parser.parse_args(argv)
     except (SystemExit, Exception) as exc:  # argparse raises both
         raise UsageError(str(exc)) from exc
-    for mode in ("print-default-config", "self-test", "monitor-list", "diagnose",
-                 "status", "stop"):
-        flag = mode.replace("-", "_")
-        if getattr(ns, flag, False):
-            if sum(bool(getattr(ns, f.replace("-", "_"), False)) for f in
-                   ("stop", "status", "diagnose", "monitor_list", "self_test",
-                    "print_default_config")) > 1:
-                raise UsageError("modes are mutually exclusive")
-            return Options(mode=mode, config=_cfgpath(ns), geometry=ns.geometry)
-    return Options(mode="run", config=_cfgpath(ns), geometry=ns.geometry)
+    chosen = [m for m in MODE_FLAGS if getattr(ns, m.replace("-", "_"), False)]
+    if len(chosen) > 1:
+        raise UsageError("modes are mutually exclusive")
+    if not chosen:
+        return Options(mode="run", config=_cfgpath(ns), geometry=ns.geometry)
+    return Options(mode=chosen[0], config=_cfgpath(ns), geometry=ns.geometry)
 
 
 def _cfgpath(ns) -> Path | None:
@@ -800,13 +797,142 @@ def monitor_list(opts: Options) -> int:
     return EXIT_OK
 
 
-def init_gtk():
+# ------------------------------------------------------- backend gating ---
+
+# The two backends need different things, and conflating them is what made the
+# wrapper (and run()) demand GtkLayerShell from a process that never uses it:
+# the GL client speaks layer-shell itself through native/libmwl.so. On a box
+# without gir1.2-gtklayershell-0.1 that turned a working GPU path into exit 3.
+NATIVE_LIB = (255, 255, 255)   # sentinel: libgtk-layer-shell is not in play
+BUILD_TOOLS = ("gcc", "wayland-scanner", "pkg-config")
+HEADER_PATHS = ("/usr/include/EGL/egl.h", "/usr/include/GLES2/gl2.h",
+                "/usr/include/wayland-client.h")
+PROTOCOL_XMLS = tuple(str(APP_DIR / "native" / name) for name in
+                      ("wlr-layer-shell-unstable-v1.xml",
+                       "xdg-output-unstable-v1.xml", "xdg-shell.xml"))
+TYPELIB_VERSIONS = {"Gdk": "3.0", "Gtk": "3.0", "GtkLayerShell": "0.1",
+                    "GLib": "2.0", "Gio": "2.0"}
+
+
+def which(name: str) -> str | None:
+    """Indirection so the build-blocker report is testable."""
+    return shutil.which(name)
+
+
+def required_typelibs(backend: str, gl_available: bool) -> tuple[str, ...]:
+    """GObject-Introspection namespaces this run actually needs.
+
+    GtkLayerShell belongs to the cairo backend only - but the fallback ladder
+    makes it mandatory again the moment GL is unusable, which is why the input
+    is (backend, gl_available) and not the backend name alone.
+    """
+    libs = ["GLib", "Gio", "Gdk", "Gtk"]
+    if backend != "gl" or not gl_available:
+        libs.append("GtkLayerShell")
+    return tuple(libs)
+
+
+def parse_versions(text: str) -> dict[str, str]:
+    """'layer_shell=4 compositor=4 seat=5 xdg_output=yes' -> dict."""
+    out: dict[str, str] = {}
+    for chunk in (text or "").split():
+        if "=" in chunk:
+            key, value = chunk.split("=", 1)
+            out[key.strip()] = value.strip()
+    return out
+
+
+def caps_from_native(versions_text: str, scales: tuple[int, ...] = ()
+                     ) -> Capabilities:
+    """Capabilities measured by our own Wayland client, not by libgtk-layer-shell.
+
+    lib_version is a sentinel: the '<0.6 has no keyboard_mode' rule is about
+    libgtk-layer-shell, and asserting it against the native path would invent a
+    blocker that does not exist (exclusive keyboard is ours, gated on the
+    layer-shell protocol version).
+    """
+    parsed = parse_versions(versions_text)
+    try:
+        protocol = int(parsed.get("layer_shell", "0"))
+    except ValueError:
+        protocol = 0
+    return Capabilities(protocol >= 1, protocol, NATIVE_LIB, tuple(scales))
+
+
+def _typelib_ok(ns: str, version: str) -> bool:
+    try:
+        import gi
+
+        gi.require_version(ns, version)
+        __import__("gi.repository", fromlist=[ns])
+        return True
+    except (ImportError, ValueError):
+        return False
+
+
+def gl_usable() -> tuple[bool, str]:
+    """Can the GL backend run here, before we try it?
+
+    A prebuilt libmwl.so is enough. Otherwise the build has to be possible, and
+    saying *which* prerequisite is missing is the whole point: the grogu box had
+    gcc and wayland-scanner but no EGL/GLES dev headers, and the old failure
+    message blamed the compositor.
+    """
+    from . import mwl as mwl_mod
+
+    path = mwl_mod.library_path()
+    if path.exists():
+        return True, f"libmwl.so built at {path}"
+    missing_tools = [tool for tool in BUILD_TOOLS if not which(tool)]
+    missing_headers = [h for h in HEADER_PATHS if not Path(h).exists()]
+    missing_xmls = [x for x in PROTOCOL_XMLS if not Path(x).exists()]
+    parts: list[str] = []
+    if missing_tools:
+        parts.append("missing tools: " + " ".join(missing_tools))
+    if missing_headers:
+        parts.append("missing headers: " + " ".join(missing_headers))
+    if missing_xmls:
+        parts.append("missing protocol xml: " + " ".join(missing_xmls))
+    return False, ("; ".join(parts) or f"libmwl.so not built at {path}")
+
+
+def preflight(opts: Options) -> int:
+    """--preflight: is *any* backend usable here? The wrapper runs this instead
+    of importing cairo's dependencies unconditionally."""
+    cfg = ConfigStore(config_path(opts), _neutral_caps()).load()
+    backend = cfg.render.backend
+    gl_ok, gl_why = gl_usable()
+    if backend == "gl" and gl_ok:
+        print(f"matrix-rain: gl backend ready ({gl_why})")
+        return EXIT_OK
+    reasons = [] if gl_ok else [f"gl:{gl_why}"]
+    need = [(ns, TYPELIB_VERSIONS[ns]) for ns in required_typelibs(backend, gl_ok)]
+    missing = [ns for ns, version in need if not _typelib_ok(ns, version)]
+    if not missing:
+        if backend == "gl":
+            print(f"matrix-rain: GL unusable ({gl_why}); the cairo fallback is ready")
+        return EXIT_OK
+    reasons.append(f"cairo: missing typelibs {' '.join(missing)} "
+                   "(install gir1.2-gtklayershell-0.1 python3-gi python3-gi-cairo)")
+    eprint("matrix-rain: no usable backend - " + "; ".join(reasons))
+    return EXIT_NO_LAYER_SHELL
+
+
+def init_gtk(need_layer_shell: bool = True):
+    """Import the GTK3 stack. GtkLayerShell is required by the cairo backend only:
+    the GL client speaks layer-shell itself, so demanding it there meant a native
+    app refused to start over a dependency it never touched (the grogu case)."""
     import gi
 
     gi.require_version("Gdk", "3.0")
     gi.require_version("Gtk", "3.0")
-    gi.require_version("GtkLayerShell", "0.1")
-    from gi.repository import Gdk, GLib, Gtk, GtkLayerShell
+    if need_layer_shell:
+        gi.require_version("GtkLayerShell", "0.1")
+        from gi.repository import Gdk, GLib, Gtk, GtkLayerShell
+    else:
+        from gi.repository import Gdk, GLib, Gtk
+
+        GtkLayerShell = None
 
     Gtk.init(None)
     return Gtk, Gdk, GLib, GtkLayerShell
@@ -841,18 +967,31 @@ def run(opts: Options) -> int:
     log_line(f"render_source {as_json(plan.source)}")
     apply_env(plan.env)
 
-    Gtk, Gdk, GLib, ls = init_gtk()
-    probe = diagnose_probe(ls)
     # The backend is chosen from the provisional load (same file, neutral caps):
     # render.backend has no caps-dependent validation, and the runtime must exist
-    # before the monitors factory can be picked.
+    # before the monitors factory can be picked. Starting it first is also what
+    # tells us whether the cairo-only typelibs are needed at all.
     runtime = start_gl_runtime() if provisional.render.backend == "gl" else None
     backend = "gl" if runtime is not None else "cairo"
+    log_line(f"backend_selected {backend}")
+    try:
+        Gtk, Gdk, GLib, ls = init_gtk(need_layer_shell=(runtime is None))
+    except (ImportError, ValueError) as exc:
+        log_line(f"cairo_deps_unavailable {type(exc).__name__}: {exc}")
+        eprint("matrix-rain: the GL backend is unusable and the cairo fallback "
+               f"needs the GTK3/GtkLayerShell typelibs ({type(exc).__name__}: {exc}); "
+               "install gir1.2-gtklayershell-0.1")
+        release_lock(handle)
+        return EXIT_NO_LAYER_SHELL
+    probe = diagnose_probe(ls) if ls is not None else None
     monitors = (lambda: gl_monitors(opts, runtime)) if runtime else \
         (lambda: display_monitors(opts))
-    caps = Capabilities(probe["supported"], probe["protocol_version"],
-                        tuple(probe["lib_version"]),
-                        tuple(m.scale for m in monitors()))
+    scales = tuple(m.scale for m in monitors())
+    if runtime is not None:
+        caps = caps_from_native(runtime.handle.versions(), scales)
+    else:
+        caps = Capabilities(probe["supported"], probe["protocol_version"],
+                            tuple(probe["lib_version"]), scales)
     store = ConfigStore(config_path(opts), caps)
     cfg = store.load()
     for warning in store.warnings:
@@ -987,18 +1126,30 @@ def main(argv: list[str] | None = None) -> int:
         return self_test(opts)
     if opts.mode == "monitor-list":
         return monitor_list(opts)
+    if opts.mode == "preflight":
+        return preflight(opts)
     if opts.mode == "diagnose":
-        _Gtk, _Gdk, _GLib, ls = init_gtk()
-        probe = diagnose_probe(ls)
-        try:
-            scales = tuple(m.scale for m in display_monitors(opts))
-        except Exception as exc:  # pragma: no cover
-            eprint(f"monitor enumeration failed: {exc}")
-            scales = ()
-        caps = _Capabilities(probe, scales)
+        provisional = ConfigStore(config_path(opts), _neutral_caps()).load()
+        native = None
+        if provisional.render.backend == "gl" and gl_usable()[0]:
+            # The native client can answer for itself: no GtkLayerShell needed,
+            # so --diagnose still works on a box with no GTK layer-shell typelib.
+            native = gl_status()
+            caps = caps_from_native(native.get("versions", ""),
+                                    tuple(int(o.get("scale", 1))
+                                          for o in native.get("outputs", ())))
+        else:
+            _Gtk, _Gdk, _GLib, ls = init_gtk()
+            probe = diagnose_probe(ls)
+            try:
+                scales = tuple(m.scale for m in display_monitors(opts))
+            except Exception as exc:  # pragma: no cover
+                eprint(f"monitor enumeration failed: {exc}")
+                scales = ()
+            caps = _Capabilities(probe, scales)
         report = diagnose(ConfigStore(config_path(opts), caps), caps)
         if report.get("backend") == "gl":
-            report["gl"] = gl_status()
+            report["gl"] = native if native is not None else gl_status()
         print(as_json(report))
         return int(report["exit"])
     if opts.mode == "status":

@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
 # matrix-rain - thin shim for the COSMIC custom shortcut (Ctrl+Shift+M).
 #
 # Responsibilities, and only these (plan D1.6):
 #   * pin the interpreter: PATH python3 is an asdf shim on 3.14 with no `gi` (T9)
 #   * keep GI_TYPELIB_PATH clean so no other tool's typelibs leak in (T14)
-#   * preflight the imports, then exec the app
-# Everything else - lock/toggle, escalation ladder, env pinning, veil, rendering -
-# lives in matrix_overlay.cli, where it is unit-tested.
+#   * preflight, then exec the app
+# Everything else - lock/toggle, escalation ladder, env pinning, veil, rendering,
+# and the *decision of which backend needs which dependencies* - lives in
+# matrix_overlay.cli, where it is unit-tested.
+#
+# The preflight used to import GtkLayerShell unconditionally here. That is the
+# cairo backend's dependency: the default GL backend is a native Wayland client
+# (native/libmwl.so) and needs none of it, so on an AMD-only box without
+# gir1.2-gtklayershell-0.1 the shim aborted with exit 3 before EGL was even
+# tried, and the log blamed the GPU. `--preflight` answers "can any backend run
+# here?" and names the missing pieces.
 #
 # The shortcut's Spawn() is NOT run by a shell (cosmic-settings-daemon uses
 # pidfd_spawnp), so this command must be PATH-resolvable as a bare word and must
@@ -29,9 +39,8 @@ unset GI_TYPELIB_PATH LD_LIBRARY_PATH
 export GDK_BACKEND=wayland
 export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
-if ! "$PYTHON" -c 'import gi; gi.require_version("Gtk","3.0"); gi.require_version("GtkLayerShell","0.1"); from gi.repository import Gtk, GtkLayerShell' \
-     >>"$LOG_FILE" 2>&1; then
-  printf '%s preflight FAILED: PyGObject / gir1.2-gtklayershell-0.1 unavailable\n' \
+if ! "$PYTHON" -m matrix_overlay --preflight >>"$LOG_FILE" 2>&1; then
+  printf '%s preflight FAILED: no usable backend (reason above)\n' \
     "$(date -Iseconds)" >>"$LOG_FILE"
   exit 3
 fi
