@@ -24,6 +24,32 @@ config watching. Classic X11 screensavers (`xmatrix`, `glmatrix`,
 | `~/.local/state/matrix-overlay/matrix-rain.log` | log (also where a stray app stdout goes) |
 | `$XDG_RUNTIME_DIR/matrix-overlay.lock` / `.status.json` | single-instance flock + live status |
 
+## Install profiles (dotfile and system)
+
+One tree, two profiles, no code branches: the app resolves its own root from
+`__file__` (`cli.APP_DIR`), so copying the tree somewhere is the whole install.
+
+```sh
+make native        # build libmwl.so - the only compile path; packaging calls this
+make test          # unit suite (conftest aborts under a non-system interpreter)
+make preflight diagnose selftest
+sh install.sh --mode dotfile                    # $HOME/.local/share/matrix-overlay + ~/.local/bin/matrix-rain
+sh install.sh --mode system --destdir DIR       # /usr/{lib,bin} + /etc/matrix-overlay (dpkg's DESTDIR)
+sh install.sh --mode dotfile --uninstall        # remove; the system profile keeps /etc
+```
+
+`--mode system` ships `/etc/matrix-overlay/config.toml` (distro defaults) and never
+writes into `/usr` at run time. If the install tree is read-only and holds no
+prebuilt `libmwl.so`, the build stages its sources into
+`$XDG_STATE_HOME/matrix-overlay/native` and stamps the artifact with a content
+digest, so staged copies never cause a rebuild on every launch.
+
+**Config chain** - exactly one file is read, so a user file *replaces* the system
+defaults instead of merging with them: `--config PATH` > `$MATRIX_OVERLAY_CONFIG`
+> `$XDG_CONFIG_HOME/matrix-overlay/config.toml` (`$HOME/.config` fallback) >
+`/etc/matrix-overlay/config.toml`. Logs, the first-run build dir and crash traces
+live under `$XDG_STATE_HOME/matrix-overlay` (`$HOME/.local/state` fallback).
+
 ## Bind the shortcut (COSMIC does not expand `$HOME` in `Spawn`)
 
 COSMIC Settings → Keyboard → *View and customize shortcuts* → Custom shortcuts → **+**
@@ -186,8 +212,10 @@ before the event queue is read, or buffer releases never arrive and
 
 ## Uninstall
 
-Delete the shortcut, then:
-`rm -rf ~/.local/share/matrix-overlay ~/.local/bin/matrix-rain ~/.config/matrix-overlay ~/.local/state/matrix-overlay`
+Delete the shortcut, then `sh install.sh --mode dotfile --uninstall` (or
+`rm -rf ~/.local/share/matrix-overlay ~/.local/bin/matrix-rain`), plus
+`~/.config/matrix-overlay ~/.local/state/matrix-overlay` and, for a system
+install, `/etc/matrix-overlay` (dpkg removes its conffile on purge).
 Optionally `sudo apt remove gir1.2-gtklayershell-0.1 python3-gi-cairo python3-pytest` —
 but **keep `libgtk-layer-shell0`**: `handy` depends on it.
 

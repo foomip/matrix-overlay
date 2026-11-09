@@ -28,9 +28,19 @@ from .surface import MonitorInfo
 EXIT_OK, EXIT_CONFIG, EXIT_NO_LAYER_SHELL, EXIT_LOCK, EXIT_DIAGNOSE = 0, 2, 3, 4, 5
 
 APP_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_CONFIG = Path(os.environ.get("HOME", "")) / ".config/matrix-overlay/config.toml"
+# The distro layer: a packaged install ships this, and it applies when the user
+# has never edited a config of their own (one file wins, no merge: see the
+# config_path docstring).
+SYSTEM_CONFIG = Path("/etc/matrix-overlay/config.toml")
 RUNTIME_LOCK = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "matrix-overlay.lock"
-LOG_DIR = Path(os.environ.get("HOME", "")) / ".local/state/matrix-overlay"
+def state_dir() -> Path:
+    """$XDG_STATE_HOME/matrix-overlay, with $HOME/.local/state as the fallback
+    (the dotfile profile). A system install must not invent a second location."""
+    base = os.environ.get("XDG_STATE_HOME") or Path(os.environ.get("HOME", "")) / ".local/state"
+    return Path(base) / "matrix-overlay"
+
+
+LOG_DIR = state_dir()
 NVIDIA_JSON = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
 MESA_JSON = "/usr/share/glvnd/egl_vendor.d/50_mesa.json"
 AMD_VENDOR = "0x1002"
@@ -76,14 +86,27 @@ def _cfgpath(ns) -> Path | None:
     return Path(ns.config) if ns.config else None
 
 
+def user_config_path() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME") or Path(os.environ.get("HOME", "")) / ".config"
+    return Path(base) / "matrix-overlay" / "config.toml"
+
+
 def config_path(opts: Options) -> Path:
+    """Chain: --config, then $MATRIX_OVERLAY_CONFIG, then the user's file, then
+    the system one. Exactly one file is read, so a user file *replaces* the
+    system defaults instead of merging with them - which is why the packaged
+    system file holds only deliberate distro choices, never a full dump."""
     if opts.config is not None:
-        return opts.config
+        return Path(opts.config)
     env = os.environ.get("MATRIX_OVERLAY_CONFIG")
-    return Path(env) if env else DEFAULT_CONFIG
-
-
-# --------------------------------------------------------- render-node env ---
+    if env:
+        return Path(env)
+    user = user_config_path()
+    if user.exists():
+        return user
+    if SYSTEM_CONFIG.exists():
+        return SYSTEM_CONFIG
+    return user
 
 
 # --------------------------------------------------------- render-node env ---
@@ -637,7 +660,12 @@ def self_test(opts: Options, frames: int = 40) -> int:
     import hashlib
     import time
 
-    import cairo
+    try:
+        import cairo  # gi.repository.cairo: a CPU render, so this needs no GPU
+    except ImportError as exc:  # the headless proof must fail loudly, not traceback
+        eprint(f"self-test cannot render: {exc}. Install python3-gi-cairo "
+               "(the GL backend does not need it; --preflight proves that path).")
+        return EXIT_DIAGNOSE
 
     from .atlas import AtlasKey, GlyphAtlas
     from .render import Renderer

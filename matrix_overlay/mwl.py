@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import ctypes
 import dataclasses
+import hashlib
 import os
 import pathlib
+import shutil
 import subprocess
 from typing import Sequence
 
@@ -30,21 +32,118 @@ class MwlError(RuntimeError):
     """The native library is missing, failed to build, or refused a request."""
 
 
+BUILD_SOURCES = ("mwl.c", "mwl.h", "build.sh")
+
+
+def _state_root() -> pathlib.Path:
+    base = os.environ.get("XDG_STATE_HOME") or (
+        pathlib.Path(os.environ.get("HOME", "")) / ".local" / "state")
+    return pathlib.Path(base) / "matrix-overlay"
+
+
+def candidate_library(default: pathlib.Path, *,
+                      state_dir: pathlib.Path | None = None) -> pathlib.Path:
+    """Where libmwl.so lives.
+
+    1. a prebuilt library in the install tree wins (that is the packaged
+      profile: /usr/lib/.../native/libmwl.so, no compiler required);
+    2. otherwise build in the tree if it is writable (the dotfile/dev profile,
+      as it has always been);
+    3. otherwise fall back to a writable state dir - a read-only /usr install
+      can never host a first-run compile, and failing to see that is how a
+      packaged build ends up "gl_unavailable".
+    """
+    if default.exists():
+        return default
+    native = default.parent
+    if native.is_dir() and os.access(native, os.W_OK):
+        return default
+    base = state_dir if state_dir is not None else _state_root()
+    return pathlib.Path(base) / "native" / "libmwl.so"
+
+
 def library_path() -> pathlib.Path:
     override = os.environ.get(ENV_LIB)
-    return pathlib.Path(override) if override else DEFAULT_LIB
+    if override:
+        return pathlib.Path(override)
+    return candidate_library(DEFAULT_LIB)
+
+
+def stage_build_dir(native: pathlib.Path, *, state_dir: pathlib.Path | None = None
+                    ) -> pathlib.Path:
+    """Copy the build inputs to a writable native dir.
+
+    build.sh compiles next to itself, so the sources (mwl.c, mwl.h, build.sh and
+    the vendored protocol XMLs) have to travel with it. Generated protocol code
+    is deliberately not copied: wayland-scanner regenerates it.
+    """
+    dest = candidate_library(native / "libmwl.so", state_dir=state_dir).parent
+    dest.mkdir(parents=True, exist_ok=True)
+    for name in BUILD_SOURCES:
+        src = native / name
+        if src.exists():
+            shutil.copy2(src, dest / name)
+    for xml in sorted(native.glob("*.xml")):
+        shutil.copy2(xml, dest / xml.name)
+    return dest
+
+
+def _source_files(native: pathlib.Path) -> list[pathlib.Path]:
+    out = [native / name for name in BUILD_SOURCES if (native / name).exists()]
+    out += sorted(native.glob("*.xml"))
+    return out
+
+
+def sources_digest(native: pathlib.Path) -> str:
+    h = hashlib.sha256()
+    for path in _source_files(native):
+        h.update(path.name.encode("utf-8"))
+        h.update(path.read_bytes())
+    return h.hexdigest()
+
+
+def stamp_path(lib: pathlib.Path) -> pathlib.Path:
+    return lib.with_name(lib.name + ".stamp")
+
+
+def write_stamp(native: pathlib.Path, lib: pathlib.Path) -> None:
+    try:
+        stamp_path(lib).write_text(sources_digest(native), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def is_stale(lib: pathlib.Path, native: pathlib.Path) -> bool:
+    """Is libmwl.so out of date with respect to its sources?
+
+    A content digest, not mtime: staging sources into a writable dir gives them
+    a fresh mtime, and an mtime-only rule would then rebuild on every single
+    launch. Trees built before the stamp existed keep the old mtime rule.
+    """
+    if not lib.exists():
+        return True
+    stamp = stamp_path(lib)
+    if stamp.exists():
+        return stamp.read_text(encoding="utf-8").strip() != sources_digest(native)
+    source = native / "mwl.c"
+    return source.exists() and source.stat().st_mtime > lib.stat().st_mtime
 
 
 def ensure_library(path: pathlib.Path | None = None, *, rebuild: bool = True) -> pathlib.Path:
     """Build libmwl.so when absent or stale. Raises MwlError with compiler output."""
     lib = path or library_path()
     native = lib.parent
-    source = native / "mwl.c"
-    if not lib.exists():
-        if not (rebuild and source.exists()):
-            raise MwlError(f"{lib} not found (and no {source} to build it from)")
-    elif not rebuild or not source.exists() or source.stat().st_mtime <= lib.stat().st_mtime:
+    if not is_stale(lib, native):
         return lib
+    if not rebuild:
+        if not lib.exists():
+            raise MwlError(f"{lib} not found (and no build permitted)")
+        return lib
+    if not (native / "mwl.c").exists():
+        raise MwlError(f"{lib} not found (and no {native / 'mwl.c'} to build it from)")
+    if not os.access(native, os.W_OK):
+        native = stage_build_dir(native)
+        lib = native / "libmwl.so"
     script = native / "build.sh"
     if not script.exists():
         raise MwlError(f"{script} missing - cannot build the GL backend")
@@ -53,6 +152,7 @@ def ensure_library(path: pathlib.Path | None = None, *, rebuild: bool = True) ->
     if proc.returncode != 0 or not lib.exists():
         tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-8:]
         raise MwlError("failed to build libmwl.so:\n  " + "\n  ".join(tail))
+    write_stamp(native, lib)
     return lib
 
 
