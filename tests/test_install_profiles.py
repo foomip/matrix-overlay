@@ -251,6 +251,53 @@ def test_the_fhs_tree_is_importable_from_its_own_root(tmp_path):
     assert "render_node" in proc.stdout
 
 
+def clean_env(tmp_path) -> dict:
+    """A spawn like COSMIC's: no PYTHONPATH, no MATRIX_OVERLAY_DIR, no session
+    environment that could hide where the package actually lives."""
+    return {"HOME": str(tmp_path / "home"), "XDG_STATE_HOME": str(tmp_path / "state"),
+            "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
+
+
+def test_the_packaged_shim_finds_the_package_next_to_usr_bin(tmp_path):
+    """The .deb profile, end to end through the real shim: COSMIC's Spawn() hands
+    us a bare word and no environment, so /usr/bin/matrix-rain has to discover
+    /usr/lib/matrix-overlay by itself. Hardcoding ~/.local/share is the bug."""
+    root = tmp_path / "root"
+    assert run_installer("--mode", "system", "--destdir", str(root)).returncode == 0
+    shim = root / "usr/bin/matrix-rain"
+    assert shim.exists()
+    proc = subprocess.run([str(shim), "--print-default-config"],
+                          capture_output=True, text=True, env=clean_env(tmp_path),
+                          cwd=str(tmp_path))
+    assert proc.returncode == 0, proc.stderr + open(
+        tmp_path / "state/matrix-overlay/matrix-rain.log").read()
+    assert "render_node" in proc.stdout
+
+
+def test_the_dotfile_shim_finds_the_package_next_to_local_bin(tmp_path):
+    """Same discovery for the dotfile profile: ~/.local/bin/matrix-rain sees
+    ~/.local/share/matrix-overlay as its sibling, without any $HOME literal."""
+    home = tmp_path / "h"
+    assert run_installer("--mode", "dotfile", "--home", str(home)).returncode == 0
+    proc = subprocess.run([str(home / ".local/bin/matrix-rain"),
+                           "--print-default-config"], capture_output=True, text=True,
+                          env=clean_env(tmp_path) | {"HOME": str(home)},
+                          cwd=str(tmp_path))
+    assert proc.returncode == 0, proc.stderr
+    assert "render_node" in proc.stdout
+
+
+def test_matrix_overlay_dir_still_overrides_everything(tmp_path):
+    """Dev checkout / unusual layouts keep the documented escape hatch."""
+    root = tmp_path / "root"
+    assert run_installer("--mode", "system", "--destdir", str(root)).returncode == 0
+    env = clean_env(tmp_path) | {"MATRIX_OVERLAY_DIR": str(REPO)}
+    proc = subprocess.run([str(root / "usr/bin/matrix-rain"), "--print-default-config"],
+                          capture_output=True, text=True, env=env, cwd=str(tmp_path))
+    assert proc.returncode == 0, proc.stderr
+    assert "render_node" in proc.stdout
+
+
 def test_no_code_hardcodes_the_dotfile_install_root():
     """The root is derived from __file__; a literal '.local/share' in the code is
     how a dotfile install leaks into the system profile."""

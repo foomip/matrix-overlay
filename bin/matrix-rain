@@ -23,7 +23,27 @@
 # not use $HOME, redirects, or quoting.
 set -euo pipefail
 
-APP_DIR="${MATRIX_OVERLAY_DIR:-$HOME/.local/share/matrix-overlay}"
+# Where the app package lives. There is no way to pass environment through
+# COSMIC's Spawn(), so discovery happens here: the packaged install is
+# /usr/lib/matrix-overlay (a sibling of /usr/bin, where this shim lives) and the
+# dotfile install is ~/.local/share/matrix-overlay (a sibling of ~/.local/bin).
+# Resolving it from the shim's own location is what lets one shim serve both
+# profiles, and stops the dotfile path from leaking into the .deb.
+app_root() {
+  local here cand
+  here=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  for cand in "${MATRIX_OVERLAY_DIR:-}" "$here/../lib/matrix-overlay" \
+              "$here/../share/matrix-overlay" "$here/.." "$HOME/.local/share/matrix-overlay"; do
+    if [[ -n "$cand" && -f "$cand/matrix_overlay/__main__.py" ]]; then
+      CDPATH= cd -- "$cand" && pwd -P
+      return 0
+    fi
+  done
+  # Nothing found: report the dotfile path, which is what the error should name.
+  printf '%s' "$HOME/.local/share/matrix-overlay"
+}
+
+APP_DIR="${MATRIX_OVERLAY_DIR:-$(app_root)}"
 PYTHON="${MATRIX_OVERLAY_PYTHON:-/usr/bin/python3}"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/matrix-overlay"
 LOG_FILE="$STATE_DIR/matrix-rain.log"
