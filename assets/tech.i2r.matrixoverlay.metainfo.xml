@@ -80,6 +80,13 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.1.1" date="2026-11-09">
+      <description>
+        <p>Discoverable and installable from a software centre: the repository now
+        publishes the AppStream catalogue next to the package, and the icon and
+        screenshots survive AppStream processing.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-11-09">
       <description>
         <p>First packaged release: GPU-composited matrix rain over COSMIC/Wayland,

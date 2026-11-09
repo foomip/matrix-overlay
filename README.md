@@ -14,7 +14,7 @@ config watching. Classic X11 screensavers (`xmatrix`, `glmatrix`,
 
 | Path | Role |
 |---|---|
-| `~/.local/bin/matrix-rain` (installed copy of `bin/matrix-rain`) | wrapper: pins interpreter/env, runs `--preflight`, execs the app |
+| `~/.local/bin/matrix-rain` (installed copy of `bin/matrix-rain`; `/usr/bin/matrix-rain` when packaged) | wrapper: pins interpreter/env, runs `--preflight`, execs the app |
 | `~/.local/share/matrix-overlay/matrix_overlay/` | the app (`cli` `app` `world` `atlas` `render` `surface` `config`) |
 | `…/matrix_overlay/glpaint.py` | pure GL packing: atlas layout, UV tables, cell batches, geometry (unit-tested, needs no display) |
 | `…/matrix_overlay/mwl.py` | ctypes bindings for the native library (builds it on first run) |
@@ -50,13 +50,43 @@ defaults instead of merging with them: `--config PATH` > `$MATRIX_OVERLAY_CONFIG
 `/etc/matrix-overlay/config.toml`. Logs, the first-run build dir and crash traces
 live under `$XDG_STATE_HOME/matrix-overlay` (`$HOME/.local/state` fallback).
 
+## Install from the apt repository (what software centres see)
+
+The published repository is signed and publishes the AppStream catalogue, so the
+app shows up in COSMIC Store search and installs from there. To add it by hand:
+
+```sh
+sudo install -d -m 755 /etc/apt/keyrings
+sudo install -m 644 matrix-overlay.gpg /etc/apt/keyrings/matrix-overlay.gpg
+printf 'deb [signed-by=/etc/apt/keyrings/matrix-overlay.gpg arch=amd64] https://foomip.github.io/matrix-overlay stable main\n' \
+    | sudo tee /etc/apt/sources.list.d/matrix-overlay.list
+sudo apt-get update
+apt-cache policy matrix-overlay          # Candidate: 0.1.1
+```
+
+Verified on a fresh machine: `apt-get update` fetches
+`stable/main amd64 Components` plus the icon sets, `appstreamcli get
+tech.i2r.matrixoverlay` resolves to `Package: matrix-overlay`, and
+`/var/lib/swcatalog/icons/` gains `matrix-overlay-stable-main` - all before the
+package is installed, which is what makes the store entry installable rather than
+informational. Publish it with `sh packaging/publish_repo.sh --deb <deb> --out <dir>`
+(see `docs/packaging-and-store.md` for the four rules that decide whether the store
+sees anything at all).
+
+**Not a Flatpak.** cosmic-comp registers `zwlr_layer_shell_v1` through a
+`client_not_sandboxed` filter ([pop-os/cosmic-comp#2734](https://github.com/pop-os/cosmic-comp/issues/2734))
+and Flatpak >= 1.15 always attaches a Wayland security context, so a sandboxed
+build cannot draw the overlay at all, whatever permissions it requests. Upstream's
+advice for shell components is the distribution's own packaging system, which is
+what this is.
+
 ## Building a package (`.deb`)
 
 `debian/` lives in the tree, so debhelper is the only extra build dependency:
 
 ```sh
 dpkg-buildpackage -us -uc -b     # make native -> make test -> install.sh --mode system
-sudo dpkg -i ../matrix-overlay_0.1.0_amd64.deb
+sudo dpkg -i ../matrix-overlay_0.1.1_amd64.deb
 ```
 
 The package installs exactly what `install.sh --mode system` lays out, plus the
@@ -75,15 +105,21 @@ lowercase. A metainfo may not name local icon paths either (only `stock` or
 `native/build.sh` honours `CFLAGS`/`LDFLAGS`, so distribution hardening applies,
 and `debian/rules` stamps the built `libmwl.so` using the app's own
 `mwl.write_stamp` - the same code that reads the stamp, so the packaged artifact
-is current without any digest logic duplicated in the build. Putting the package
-in an apt repo other machines can see is a further step (publishing the
-AppStream/DEP-11 metadata index).
+is current without any digest logic duplicated in the build.
 
-## Bind the shortcut (COSMIC does not expand `$HOME` in `Spawn`)
+## Bind the shortcut (one manual step after installing)
 
-COSMIC Settings → Keyboard → *View and customize shortcuts* → Custom shortcuts → **+**
-→ name `Matrix rain`, command **`matrix-rain`** (bare word: `~/.local/bin` is on the
-settings daemon's `PATH`), then press `Ctrl+Shift+M`.
+Nothing in COSMIC lets a package register a shortcut for you, so do it once after
+installing - from the repository, the `.deb`, or `install.sh`:
+
+**COSMIC Settings → Keyboard → *View and customize shortcuts* → Custom shortcuts → +**
+→ name `Matrix rain`, command **`matrix-rain`**, then press `Ctrl+Shift+M` to capture
+the binding. Stop the overlay with `Escape`, a click, a second press of the
+shortcut, or `matrix-rain --stop`.
+
+The command must be the **bare word** `matrix-rain`: a packaged install puts it in
+`/usr/bin`, a dotfile install in `~/.local/bin`, and both are on the settings
+daemon's `PATH`.
 
 `Spawn()` is **not** run by a shell (the daemon uses `pidfd_spawnp`), so never write
 `"$HOME/..."`, `sh -c '...'`, `&&`, `|` or `>` there. Known COSMIC quirk: the Command

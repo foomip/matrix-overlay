@@ -1,3 +1,19 @@
+matrix-overlay (0.1.1) noble; urgency=medium
+
+  * Store metadata now survives AppStream processing: the icon SVG parses under
+    gdk-pixbuf (no comments before the root element), media URLs no longer rely
+    on redirects, and the component category is one AppStream accepts. Broken
+    any of these, and appstream-compose drops the component from the catalogue
+    without saying so.
+  * Published as a signed apt repository (packaging/publish_repo.sh): the
+    repository now ships the DEP-11 catalogue with a Package link, so COSMIC
+    Store can install the app rather than merely describe it.
+  * Documentation: the packaging rules that were measured on a client (catalogue
+    path, three compressed forms, Origin header, Package link), the render-node
+    selection ladder, and why the store route is native and not Flatpak.
+
+ -- Nelson Pascoal <foomip@users.noreply.github.com>  Mon, 09 Nov 2026 17:12:00 +0200
+
 matrix-overlay (0.1.0) noble; urgency=medium
 
   * First packaged release: GPU-composited Matrix rain over every output on
