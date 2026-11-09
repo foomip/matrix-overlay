@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- SPDX-License-Identifier: MIT -->
-<!-- SPDX-FileCopyrightText: 2026 Nelson Pascoal -->
-<!-- App icon: three cascading glyph columns, the middle head lit. Palette matches
-     config.py: head #d6ffd6, body #00b81f, dimmed tail toward transparent. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"
      role="img" aria-label="Matrix rain overlay">
+<!-- SPDX-License-Identifier: MIT -->
+<!-- SPDX-FileCopyrightText: 2026 Nelson Pascoal -->
+<!-- App icon: three cascading glyph columns with the heads lit. Palette matches
+     config.py: head #d6ffd6, body #00b81f, tail dimming away from the head.
+     These comments must stay *inside* the root element: gdk-pixbuf sniffs SVG by
+     the magic " <svg", so anything between the prolog and the root hides the file
+     format, and appstream-compose then fails the component with
+     "Unrecognized image file format" and drops it from the catalogue. -->
   <rect width="256" height="256" rx="28" fill="#04070a"/>
   <!-- the dim veil the overlay lays over the desktop: always *under* the rain -->
   <rect width="256" height="256" rx="28" fill="#001105" fill-opacity="0.75"/>

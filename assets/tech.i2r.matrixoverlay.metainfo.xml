@@ -28,6 +28,9 @@
     entry starts the same show.</p>
   </description>
 
+  <!-- libappstream 1.0.2 accepts "Utility" but rejects "Screensaver" alongside
+       it, and a single invalid category is a validation warning that fails
+       appstreamcli validate (and can be dropped by the catalogue). -->
   <categories>
     <category>Utility</category>
   </categories>
@@ -47,13 +50,16 @@
        `remote` icons, and appstream-compose fills in the cached hicolor ones
        from the icons this package installs. The remote copies are what a store
        page shows before the catalogue has run that merge. -->
-  <icon type="remote" width="256" height="256">https://github.com/foomip/matrix-overlay/raw/main/assets/tech.i2r.matrixoverlay.svg</icon>
-  <icon type="remote" width="128" height="128">https://github.com/foomip/matrix-overlay/raw/main/assets/hicolor/128x128/apps/tech.i2r.matrixoverlay.png</icon>
+  <!-- Media URLs are raw.githubusercontent.com, not github.com/.../raw: the
+       latter answers 302 and appstream-compose's media check reports
+       file-read-error, which drops the whole component from the catalogue. -->
+  <icon type="remote" width="256" height="256">https://raw.githubusercontent.com/foomip/matrix-overlay/main/assets/tech.i2r.matrixoverlay.svg</icon>
+  <icon type="remote" width="128" height="128">https://raw.githubusercontent.com/foomip/matrix-overlay/main/assets/hicolor/128x128/apps/tech.i2r.matrixoverlay.png</icon>
 
   <screenshots>
     <screenshot type="default">
       <caption>Digital rain over a 16:9 screen, rendered by the app's own painter</caption>
-      <image>https://github.com/foomip/matrix-overlay/raw/main/assets/screenshot.png</image>
+      <image>https://raw.githubusercontent.com/foomip/matrix-overlay/main/assets/screenshot.png</image>
     </screenshot>
   </screenshots>
 

@@ -90,7 +90,10 @@ def test_no_placeholder_text_anywhere_in_the_assets():
             assert bad not in text.lower(), f"{path.name}: {bad}"
 
 
-ASSET_URL = "https://github.com/foomip/matrix-overlay/raw/main/assets/"
+# raw.githubusercontent, not github.com/.../raw: the latter answers 302 and
+# appstream-compose reports file-read-error for the media, which drops the
+# component from the store catalogue entirely.
+ASSET_URL = "https://raw.githubusercontent.com/foomip/matrix-overlay/main/assets/"
 
 
 def test_metainfo_icons_are_remote_only():
@@ -216,3 +219,56 @@ def test_appstreamcli_accepts_the_installed_layout(tmp_path):
                           str(root / f"usr/share/metainfo/{ID}.metainfo.xml")],
                          capture_output=True, text=True)
     assert res.returncode == 0, res.stdout + res.stderr
+
+def test_the_svg_icon_is_readable_by_gdk_pixbuf():
+    """gdk-pixbuf sniffs SVG with the magic " <svg": an XML comment (or anything
+    else) between the prolog and the root element hides it, the file then looks
+    like an unknown format, and appstream-compose fails the *component* with
+    file-read-error and drops it from the catalogue entirely."""
+    try:
+        import gi
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import GdkPixbuf
+    except (ImportError, ValueError):  # pragma: no cover - no gir1.2-gdkpixbuf
+        pytest.skip("GdkPixbuf typelib not available")
+    pb = GdkPixbuf.Pixbuf.new_from_file(str(ASSETS / f"{ID}.svg"))
+    assert pb.get_width() >= 128 and pb.get_height() >= 128
+
+
+def test_svg_has_no_content_before_the_root_element():
+    """The same trap, caught without a typelib: nothing but the prolog and
+    whitespace may precede '<svg'."""
+    text = (ASSETS / f"{ID}.svg").read_text(encoding="utf-8")
+    head = text.split("<svg", 1)[0]
+    stripped = head.replace("<?xml", "").split("?>", 1)[-1].strip()
+    assert stripped == "", f"content before <svg>: {stripped[:40]!r}"
+
+
+COMPOSE = shutil.which("appstreamcli")
+
+
+@pytest.mark.skipif(not COMPOSE, reason="appstreamcli not installed")
+def test_appstream_compose_accepts_the_package_and_lists_the_component(tmp_path):
+    """The gate that decides whether COSMIC Store ever sees us: compose reads the
+    installed tree (metainfo + .desktop + hicolor icons) and must produce a
+    catalogue naming our component. It fails the whole component for one invalid
+    category, an unreadable SVG or a media URL that answers a redirect."""
+    root = tmp_path / "root"
+    inst = subprocess.run(["sh", str(REPO / "install.sh"), "--mode", "system",
+                           "--destdir", str(root)], capture_output=True, text=True)
+    assert inst.returncode == 0, inst.stderr
+    out = tmp_path / "meta"
+    proc = subprocess.run([COMPOSE, "compose", "--prefix=/usr",
+                           f"--result-root={out}", f"--data-dir={out}",
+                           "--origin=matrix-overlay",
+                           f"--components={ID}", str(root)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    catalog = out / "matrix-overlay.xml.gz"
+    assert catalog.exists(), sorted(p.name for p in out.iterdir())
+    body = subprocess.run(["gunzip", "-c", str(catalog)], capture_output=True, text=True)
+    assert f"<id>{ID}</id>" in body.stdout
+    # The package link is *not* added here (compose cannot know the owning
+    # package from a bare tree); publish_repo.sh adds it, and
+    # tests/test_repo_publish.py checks that. A component without it is a store
+    # entry that cannot be installed.
