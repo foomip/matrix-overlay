@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Nelson Pascoal
+#
+# The package is one tree: install.sh --mode system is the same install path the
+# Makefile exposes, so a dpkg build and a manual install cannot drift apart.
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	$(MAKE) native
+	# The stamp is written by the same code that reads it (mwl.write_stamp), so the
+	# packaged artifact is provably current with no digest logic duplicated here.
+	PYTHONPATH=$(CURDIR) /usr/bin/python3 -c "from pathlib import Path; from matrix_overlay import mwl; n = Path('$(CURDIR)/native'); mwl.write_stamp(n, n / 'libmwl.so')"; ls -l $(CURDIR)/native/libmwl.so.stamp
+
+override_dh_auto_install:
+	sh install.sh --mode system --destdir '$(CURDIR)/debian/matrix-overlay'
+
+override_dh_auto_test:
+	@if /usr/bin/python3 -c 'import pytest, gi, cairo' 2>/dev/null; then \
+		$(MAKE) test; \
+	else \
+		echo "dh_auto_test: skipped (python3-pytest, python3-gi or python3-gi-cairo absent)"; \
+	fi

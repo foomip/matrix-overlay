@@ -50,6 +50,35 @@ defaults instead of merging with them: `--config PATH` > `$MATRIX_OVERLAY_CONFIG
 `/etc/matrix-overlay/config.toml`. Logs, the first-run build dir and crash traces
 live under `$XDG_STATE_HOME/matrix-overlay` (`$HOME/.local/state` fallback).
 
+## Building a package (`.deb`)
+
+`debian/` lives in the tree, so debhelper is the only extra build dependency:
+
+```sh
+dpkg-buildpackage -us -uc -b     # make native -> make test -> install.sh --mode system
+sudo dpkg -i ../matrix-overlay_0.1.0_amd64.deb
+```
+
+The package installs exactly what `install.sh --mode system` lays out, plus the
+desktop-integration trio: `/usr/share/metainfo/tech.i2r.matrixoverlay.metainfo.xml`,
+`/usr/share/applications/tech.i2r.matrixoverlay.desktop` and the hicolor icons.
+That trio is what makes the app appear in COSMIC Store - `appstreamcli refresh
+--force && appstreamcli search matrix` on an installed box shows the component
+with its name, summary and icon, which is the catalogue the store reads.
+
+The component id, the `.desktop` basename and the icon basenames are deliberately
+the same lowercase string (`tech.i2r.matrixoverlay`): `appstream-compose` merges
+metainfo with the desktop file **by basename**, and AppStream wants ids
+lowercase. A metainfo may not name local icon paths either (only `stock` or
+`remote`): the cached icons come from the installed hicolor set.
+
+`native/build.sh` honours `CFLAGS`/`LDFLAGS`, so distribution hardening applies,
+and `debian/rules` stamps the built `libmwl.so` using the app's own
+`mwl.write_stamp` - the same code that reads the stamp, so the packaged artifact
+is current without any digest logic duplicated in the build. Putting the package
+in an apt repo other machines can see is a further step (publishing the
+AppStream/DEP-11 metadata index).
+
 ## Bind the shortcut (COSMIC does not expand `$HOME` in `Spawn`)
 
 COSMIC Settings → Keyboard → *View and customize shortcuts* → Custom shortcuts → **+**

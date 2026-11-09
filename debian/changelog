@@ -1,0 +1,12 @@
+matrix-overlay (0.1.0) noble; urgency=medium
+
+  * First packaged release: GPU-composited Matrix rain over every output on
+    COSMIC/Wayland, triggered by a custom shortcut (Ctrl+Shift+M by convention).
+  * The render node and EGL vendor are detected from the connectors that are
+    actually driven, so one package serves hybrid and single-GPU machines.
+  * Config chain: --config, MATRIX_OVERLAY_CONFIG, ~/.config, then
+    /etc/matrix-overlay/config.toml (installed here as a conffile).
+  * Cairo/GTK layer-shell painting remains as a fallback for compositors whose
+    GL path is unusable; it is a Recommends, not a Depends.
+
+ -- Nelson Pascoal <foomip@users.noreply.github.com>  Mon, 09 Nov 2026 13:19:48 +0200

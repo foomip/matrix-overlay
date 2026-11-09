@@ -1,0 +1,50 @@
+Source: matrix-overlay
+Section: graphics
+Priority: optional
+Maintainer: Nelson Pascoal <foomip@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               python3,
+               gcc,
+               pkg-config,
+               libwayland-dev,
+               libwayland-bin,
+               libegl-dev,
+               libgles-dev
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/foomip/matrix-overlay
+Vcs-Git: https://github.com/foomip/matrix-overlay.git
+Vcs-Browser: https://github.com/foomip/matrix-overlay
+
+Package: matrix-overlay
+Architecture: any
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+         python3,
+         python3-gi,
+         gir1.2-glib-2.0
+Recommends: gir1.2-gtk-3.0,
+            gir1.2-gtklayershell-0.1,
+            python3-gi-cairo
+Suggests: cosmic-settings-daemon
+Description: Matrix-style digital rain over every screen on COSMIC/Wayland
+ A fullscreen overlay that runs The Matrix "digital rain" across every monitor
+ while the desktop dims underneath. Escape, a pointer click, or the same
+ shortcut brings the desktop back.
+ .
+ One zwlr_layer_shell_v1 OVERLAY surface is created per output and painted with
+ GLES2 over EGL, so the compositor imports dmabufs instead of copying a CPU
+ buffer: measured at 22 fps for about nine percent of one core on a 1080p
+ laptop iGPU. The GPU that renders is chosen from the connectors that actually
+ drive a connected output, which is what makes one package work on both a
+ hybrid machine and a single-GPU one.
+ .
+ There is no window and no tray icon by design. Bind the command "matrix-rain"
+ to a COSMIC custom shortcut (Settings, Keyboard, Custom shortcuts) to get the
+ Ctrl+Shift+M trigger; a launcher entry is installed as well so a show can be
+ started without a keybind. The configuration file is reloaded while a show is
+ running, so speed, density, tail length, colours, font and glyph set can be
+ tuned live.
+ .
+ A Cairo/GTK layer-shell painter is kept as a fallback for compositors whose GL
+ path is unusable; its dependencies are Recommends rather than Depends.

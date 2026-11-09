@@ -21,7 +21,11 @@ for proto in wlr-layer-shell-unstable-v1 xdg-output-unstable-v1 xdg-shell; do
     wayland-scanner private-code  "$proto.xml" "$proto-client-protocol.c"
 done
 
+# CFLAGS/LDFLAGS are honoured so a distribution build (dpkg-buildflags: hardening,
+# -fstack-protector-strong, -Wl,-z,now) applies to us too; unset keeps the plain
+# developer build identical.
 gcc -shared -fPIC -O2 -std=gnu11 -Wall -Wextra -Wno-unused-parameter \
+    ${CFLAGS:-} ${LDFLAGS:-} \
     -o libmwl.so mwl.c \
     wlr-layer-shell-unstable-v1-client-protocol.c \
     xdg-output-unstable-v1-client-protocol.c \
