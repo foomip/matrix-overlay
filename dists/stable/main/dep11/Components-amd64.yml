@@ -1,0 +1,104 @@
+---
+File: DEP-11
+Version: '1.0'
+Origin: matrix-overlay-stable-main
+Archive: stable
+Component: main
+Architectures:
+ - amd64
+Time: 20261109T165815
+---
+Type: desktop-application
+ID: tech.i2r.matrixoverlay
+Package: matrix-overlay
+ProjectLicense: MIT
+Name:
+  C: Matrix rain overlay
+Summary:
+  C: Show Matrix-style digital rain over every screen
+Description:
+  C: >-
+    <p>Press Ctrl+Shift+M and The Matrix "digital rain" cascades across every
+        monitor while the desktop dims underneath. Escape, a click, or the same
+        shortcut brings the desktop back.</p>
+    <p>It is a layer-shell overlay on COSMIC/Wayland, composited by the GPU
+        through EGL/GLES2 rather than painted on the CPU, so it holds its frame rate
+        for a few percent of one core. Everything is tunable in a plain config file
+        that is reloaded while a show is running: speed, density, tail length,
+        colours, font and glyph set.</p>
+    <p>There is no window and no tray icon by design. The intended trigger is a
+        COSMIC custom shortcut bound to the command <em>matrix-rain</em>; the launcher
+        entry starts the same show.</p>
+ProjectGroup: i2r.tech
+Developer:
+  id: tech.i2r
+  name:
+    C: Nelson Pascoal
+Categories:
+- Utility
+Keywords:
+  C:
+  - matrix
+  - rain
+  - overlay
+  - screensaver
+  - wayland
+  - cosmic
+Url:
+  homepage: https://github.com/foomip/matrix-overlay
+  bugtracker: https://github.com/foomip/matrix-overlay/issues
+  vcs-browser: https://github.com/foomip/matrix-overlay
+Icon:
+  cached:
+  - name: tech.i2r.matrixoverlay.png
+    width: 48
+    height: 48
+  - name: tech.i2r.matrixoverlay.png
+    width: 64
+    height: 64
+  - name: tech.i2r.matrixoverlay.png
+    width: 64
+    height: 64
+    scale: 2
+  - name: tech.i2r.matrixoverlay.png
+    width: 128
+    height: 128
+  - name: tech.i2r.matrixoverlay.png
+    width: 128
+    height: 128
+    scale: 2
+  stock: tech.i2r.matrixoverlay
+Launchable:
+  desktop-id:
+  - tech.i2r.matrixoverlay.desktop
+Provides:
+  binaries:
+  - matrix-rain
+Screenshots:
+- default: true
+  caption:
+    C: Digital rain over a 16:9 screen, rendered by the app's own painter
+  thumbnails: []
+  source-image:
+    url: https://raw.githubusercontent.com/foomip/matrix-overlay/main/assets/screenshot.png
+    width: 1600
+    height: 900
+Releases:
+- version: 0.1.1
+  type: stable
+  unix-timestamp: 1794182400
+  description:
+    C: >-
+      <p>Discoverable and installable from a software centre: the repository now
+              publishes the AppStream catalogue next to the package, and the icon and
+              screenshots survive AppStream processing.</p>
+- version: 0.1.0
+  type: stable
+  unix-timestamp: 1794182400
+  description:
+    C: >-
+      <p>First packaged release: GPU-composited matrix rain over COSMIC/Wayland,
+              automatic GPU selection, live-reloaded config, and a cairo fallback for
+              compositors without a usable GL path.</p>
+ContentRating:
+  oars-1.1: {}

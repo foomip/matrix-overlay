@@ -1,0 +1,60 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Codename: stable
+Date: Mon, 09 Nov 2026 16:58:15 +0000
+Label: matrix-overlay
+Origin: matrix-overlay
+Suite: stable
+Version: 1
+MD5Sum:
+ 3e65d38626b214e5ad504a53acaafe66              125 Release
+ dc40ae6367dc3fdbdd13e9165ba2d634             4206 main/binary-amd64/Packages
+ d29fadf37a73953264445791229171cb             1535 main/binary-amd64/Packages.gz
+ f5cae0d7e758cb43fe45cafae9ea681c             1572 main/binary-amd64/Packages.xz
+ d5e65e463ceca4af496581b105ec671f             2940 main/dep11/Components-amd64.yml
+ c0140d2783050b585328e4db323f36c9             1350 main/dep11/Components-amd64.yml.gz
+ 25e18ce8973b5981d1b76e45fe88e386             1412 main/dep11/Components-amd64.yml.xz
+ 1a5eaed8fd77f0c2c9cd7c1d4cc6a8aa            10240 main/dep11/icons-128x128.tar
+ 91db456d6e263631ee164dc970580fb9            10240 main/dep11/icons-48x48.tar
+ b25c22449c3664516a93949a426f3fbc            10240 main/dep11/icons-64x64.tar
+SHA1:
+ 50a63a72f0511affaa7ceaeb406dfa17e270598e              125 Release
+ 7d9ed158c47b790aeb68d304f1325cda9278e835             4206 main/binary-amd64/Packages
+ 5b3944fd8daadb05d8bf21eb0416d253ea3296ae             1535 main/binary-amd64/Packages.gz
+ 70b5a0c5ef0fdd591dc3ba1ecf558c7cfef22716             1572 main/binary-amd64/Packages.xz
+ 795a0e05516377997f7b6b0468ad542ccaf4d0d0             2940 main/dep11/Components-amd64.yml
+ 5dacd07ba5e4b6fb966f82e9fd1d6d35ffb495e9             1350 main/dep11/Components-amd64.yml.gz
+ 48dc2453f9b14d4cf12ed30887cb0bdeaeb4e6d6             1412 main/dep11/Components-amd64.yml.xz
+ 10ada7aedd8ec18a8ee97f0d3c006c019438e134            10240 main/dep11/icons-128x128.tar
+ 56b9f87ae12a854746b3b21a637ec5c4166a6197            10240 main/dep11/icons-48x48.tar
+ 0b3843b67d1445c58f41eff08ec3983cf2e3a25c            10240 main/dep11/icons-64x64.tar
+SHA256:
+ 8d413adffdce0607c9e1e167300c75aef54aba73f5e63e2d2a529df4fe45f7d9              125 Release
+ 1d3e0e2ff0cfefec80d04b509a690e2fc80de43292ed62fd48b2c3f9dd6fa04b             4206 main/binary-amd64/Packages
+ e4aeda872e9b7cd14bff8938b66f42c6f5885235dd3da1fe07d7a521a06268de             1535 main/binary-amd64/Packages.gz
+ bb35a2d06ef9214a85520cff6a4a9587d9b28d5583e7b079ea478108cd1e96b2             1572 main/binary-amd64/Packages.xz
+ 5f921acb894eb44076723671106af562d497cdfc3c16e6791868dad884740176             2940 main/dep11/Components-amd64.yml
+ be7b9207af2581fd02ab2b62ee78b5de019b1eac2e03cdabbd9e62a20bf513be             1350 main/dep11/Components-amd64.yml.gz
+ 7ac7fd0e76f10f181dc92dfd01b1d910cb989dfda3e59b175744731987cf5405             1412 main/dep11/Components-amd64.yml.xz
+ 19716e009c36dadc05284503c5900dc63e81395eea475d70a9eee125fbc0e17c            10240 main/dep11/icons-128x128.tar
+ 5a518ad3a0ff7dbd21df27da3ba419127bc3b17e9f40e74c24863ef653f7bdf2            10240 main/dep11/icons-48x48.tar
+ d315dd2ec696c86619872c7469f96bd7418c9c957ce6e357fc4f3aa548f9857f            10240 main/dep11/icons-64x64.tar
+SHA512:
+ 586a9f6e8cd5cc3e2095d579123dc13be200d9011949ecd8d44f5ad112cb5a6e878139f4bd574a8a1670c525961ffa9c6da75eeb39339aa3bf6dca0ae33bcfd9              125 Release
+ a87d054819100221b0e600ee52296d1d5299615dac9c2bbf18f7eb3bd7e9f6423971db8d85d3159ddb14437a6447a4fe9f0d0517ce806f968ac86a4cf85c7721             4206 main/binary-amd64/Packages
+ 13e8024daf7612fd6f9598c5ebe447ae6842e84b0eceb7ac10057c6a969a91635a0e4732290501c8df66cd12812b406f027ed151277705595ef97af77b2cf7d6             1535 main/binary-amd64/Packages.gz
+ 013b56240cfbc83684c7c1c3847891db88b6af0372563307894ee724254802e27d890e8378306fb7c9040a96bb8787637be86e68edf92ed9dc9e8fdfbc90d692             1572 main/binary-amd64/Packages.xz
+ b8fd961e2a8a37086bcdf05f9eeaf52f88f2819ec0aa5e461d0165969614e5aa9f73d0de63881ca7b17cfc54800eec782cd9b97bdd12b9484a63b4a8086b1874             2940 main/dep11/Components-amd64.yml
+ 886de15485f273916ae266793eddf457f1a754e3192409010399a3663c4459dcb030f77cb8f34445c28dcadf766cfe44401e7b2e3808d7f06df3583394244d06             1350 main/dep11/Components-amd64.yml.gz
+ 36b1c9ae2f47d4bf1735063f33d39c5a59e9e2142c75da58f76d27d40b56e47cca90e829fe1d69d9c8f7e7b6314ca3d67702181b8f625482357de70d7f8cda0d             1412 main/dep11/Components-amd64.yml.xz
+ 6895dd1b80991d78dc74e3edfc58edfad3309528e64d41947f95f1978a28ab64e55abd06bfa678165d2677d9030abc3af22fc9d2fa96e8390701aaeed1ec1494            10240 main/dep11/icons-128x128.tar
+ bd25aeb01178f2563dfb05ed4156e7e23e6688ca26670c821a98bcbd682427ce26a7ed64e672052389fea78a9668cfa46b6fa760c38a720d355eca15909df670            10240 main/dep11/icons-48x48.tar
+ d59697969ab62eedba7fc2bae7cd29eaa8d24a48fa60978f5a694111828780232609933eea93cb93373c44bcb8a45acedf6fb07ee3f9dfb8a446c03a37db07e9            10240 main/dep11/icons-64x64.tar
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQQVUsbv8be4p7ecQFk37UhylWuVTAUCavH7pwAKCRA37UhylWuV
+TPjqAQDne08TWvpWiJC91Us0azuyt9J63M5wtALq59SHrxRJqgEA9zWN2cE53knf
+xR8v6ELhkE2oEcB/6h9Qdjy8ZCJWhgs=
+=JRX2
+-----END PGP SIGNATURE-----
