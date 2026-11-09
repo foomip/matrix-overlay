@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# matrix-rain - thin shim for the COSMIC custom shortcut (Ctrl+Shift+M).
+#
+# Responsibilities, and only these (plan D1.6):
+#   * pin the interpreter: PATH python3 is an asdf shim on 3.14 with no `gi` (T9)
+#   * keep GI_TYPELIB_PATH clean so no other tool's typelibs leak in (T14)
+#   * preflight the imports, then exec the app
+# Everything else - lock/toggle, escalation ladder, env pinning, veil, rendering -
+# lives in matrix_overlay.cli, where it is unit-tested.
+#
+# The shortcut's Spawn() is NOT run by a shell (cosmic-settings-daemon uses
+# pidfd_spawnp), so this command must be PATH-resolvable as a bare word and must
+# not use $HOME, redirects, or quoting.
+set -euo pipefail
+
+APP_DIR="${MATRIX_OVERLAY_DIR:-$HOME/.local/share/matrix-overlay}"
+PYTHON="${MATRIX_OVERLAY_PYTHON:-/usr/bin/python3}"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/matrix-overlay"
+LOG_FILE="$STATE_DIR/matrix-rain.log"
+
+mkdir -p "$STATE_DIR"
+
+if [[ ! -x "$PYTHON" ]]; then
+  printf 'matrix-rain: %s not executable\n' "$PYTHON" >>"$LOG_FILE" 2>&1
+  exit 5
+fi
+
+unset GI_TYPELIB_PATH LD_LIBRARY_PATH
+export GDK_BACKEND=wayland
+export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
+
+if ! "$PYTHON" -c 'import gi; gi.require_version("Gtk","3.0"); gi.require_version("GtkLayerShell","0.1"); from gi.repository import Gtk, GtkLayerShell' \
+     >>"$LOG_FILE" 2>&1; then
+  printf '%s preflight FAILED: PyGObject / gir1.2-gtklayershell-0.1 unavailable\n' \
+    "$(date -Iseconds)" >>"$LOG_FILE"
+  exit 3
+fi
+
+exec "$PYTHON" -m matrix_overlay "$@"
