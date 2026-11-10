@@ -1,3 +1,22 @@
+matrix-overlay (0.1.1-1) unstable; urgency=medium
+
+  * Source format: "3.0 (native)" is not a valid dpkg-source format string -
+    native is "1.0 (native)". Switched to 3.0 (quilt), which is what the archive
+    expects for a package whose tarball comes from an upstream tag.
+  * debian/watch: follow the GitHub tags (pgpmode=none while the tags are
+    unsigned). debian/upstream/metadata records the repository, the bug tracker
+    and the changelog URL.
+  * Standards-Version 4.7.4. Priority is declared once, in the source stanza, and
+    inherited by the binary package: Policy 4.7.3 no longer requires the field,
+    but dpkg-genchanges in Ubuntu 24.04 still warns and emits "Priority: -" when
+    nothing declares it (cf. Debian #1124443).
+  * debian/tests: two autopkgtests. "unit" runs the 370-case suite from the
+    source tree (it is headless by design: no compositor is needed), "installed"
+    exercises the shipped command the way a user would without drawing anything
+    on screen (--help, --preflight, and the binary-hardening assertions).
+
+ -- Nelson Pascoal <foomip@users.noreply.github.com>  Tue, 10 Nov 2026 09:58:37 +0200
+
 matrix-overlay (0.1.1) noble; urgency=medium
 
   * Store metadata now survives AppStream processing: the icon SVG parses under

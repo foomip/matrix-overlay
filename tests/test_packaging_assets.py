@@ -8,6 +8,7 @@ mode that ships a 0.1.0 package describing itself as 0.0.x.
 """
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
@@ -172,8 +173,87 @@ def test_changelog_version_matches_the_package_version():
                            capture_output=True, text=True)
     if found.returncode != 0:
         pytest.skip("dpkg-parsechangelog not installed")
-    assert found.stdout.strip() == __version__, (found.stdout.strip(), __version__)
-    assert head.startswith(f"matrix-overlay ({__version__})")
+    full = found.stdout.strip()
+    # The archive version carries a Debian revision (0.1.1-1); the metainfo, the
+    # app and the tag speak the upstream version (0.1.1). Compare those two, and
+    # assert the shape so a stray hyphen in an upstream version cannot pass.
+    upstream, _, revision = full.rpartition("-")
+    if not revision:
+        upstream, revision = full, ""
+    assert upstream == __version__, (full, __version__)
+    assert revision == "" or revision[0].isdigit(), (
+        f"debian revision must start with a digit: {full}")
+    assert head.startswith(f"matrix-overlay ({full})")
+
+
+# ------------------------------------------------------- archive readiness --- --
+
+
+@pytest.mark.skipif(not CHANGELOG.exists(), reason="debian/ not written yet")
+def test_the_source_format_is_a_real_dpkg_source_format():
+    """'3.0 (native)' is not a format dpkg-source knows - native is '1.0 (native)'.
+
+    A binary-only build tolerated the typo; a source build (what the archive
+    does) would not. The archive wants 3.0 (quilt) for a package whose tarball
+    comes from an upstream tag.
+    """
+    fmt = (REPO / "debian/source/format").read_text(encoding="utf-8").strip()
+    assert fmt in {"3.0 (quilt)", "1.0 (native)"}, fmt
+    assert fmt == "3.0 (quilt)"
+
+
+@pytest.mark.skipif(not CHANGELOG.exists(), reason="debian/ not written yet")
+def test_the_changelog_names_the_current_control_stanza():
+    """dh_gypm/dpkg reject an entry whose section or urgency is missing."""
+    head = CHANGELOG.read_text(encoding="utf-8").splitlines()[0]
+    assert "; urgency=" in head, head
+
+
+@pytest.mark.skipif(not CHANGELOG.exists(), reason="debian/ not written yet")
+def test_control_declares_a_supported_standards_version_and_no_priority():
+    control = (REPO / "debian/control").read_text(encoding="utf-8")
+    match = re.search(r"^Standards-Version:\s*([0-9.]+)\s*$", control, re.M)
+    assert match, "debian/control has no Standards-Version"
+    parts = tuple(int(x) for x in match.group(1).split("."))
+    assert parts >= (4, 7, 4), f"Standards-Version {match.group(1)} is behind"
+    source_stanza = control.split("\n\n", 1)[0]
+    # Exactly one Priority, in the source stanza: Policy 4.7.3 stopped requiring
+    # it, but dpkg-genchanges on Ubuntu 24.04 still warns (and writes
+    # "Priority: -") when a binary stanza has none and the source has none
+    # either. Declaring it once keeps both happy.
+    assert re.search(r"^Priority: optional$", source_stanza, re.M), (
+        "declare Priority once, in the source stanza, and inherit it")
+    binary_stanza = control.split("\n\n", 1)[1]
+    assert not re.search(r"^Priority:", binary_stanza, re.M), (
+        "the binary stanza must inherit, not restate")
+
+
+@pytest.mark.skipif(not CHANGELOG.exists(), reason="debian/ not written yet")
+def test_upstream_metadata_and_watch_exist_and_agree_with_the_repo():
+    """The sponsor needs to know where upstream is and how to refresh it."""
+    meta = (REPO / "debian/upstream/metadata").read_text(encoding="utf-8")
+    for field in ("Repository:", "Repository-Browse:", "Bug-Database:", "Bug-Submit:"):
+        assert re.search(rf"^{field} https?://", meta, re.M), f"{field} missing"
+    watch = (REPO / "debian/watch").read_text(encoding="utf-8")
+    first = next(line for line in watch.splitlines()
+                 if line.strip() and not line.lstrip().startswith("#"))
+    assert first.strip() == "version=4", first
+    assert "github.com/foomip/matrix-overlay" in watch
+    assert re.search(r"tags .*refs/tags/", watch), "watch must match tag tarballs"
+
+
+@pytest.mark.skipif(not CHANGELOG.exists(), reason="debian/ not written yet")
+def test_the_autopkgtest_needs_no_display_and_no_network():
+    """A CI test that opens a window or fetches the internet is not a test.
+
+    The suite stays headless on purpose; the CI entry point exercises the
+    installed package only, so it cannot depend on a compositor being present.
+    """
+    control = (REPO / "debian/tests/control").read_text(encoding="utf-8")
+    assert "Test-Command:" in control, "no autopkgtest entry point"
+    for forbidden in ("--self-test", "--start", "--monitor-list", "curl ", "wget "):
+        assert forbidden not in control, f"autopkgtest must not use {forbidden}"
+    assert "--preflight" in control, "the installed command should be preflighted"
 
 
 def test_metainfo_latest_release_matches_the_package_version():

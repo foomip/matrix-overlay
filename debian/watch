@@ -1,0 +1,6 @@
+# GitHub publishes the tarball for every tag, which is what uscan fetches and
+# what dpkg-buildpackage then signs into the .dsc. If upstream starts signing
+# tags, set pgpmode=auto here (the key then belongs in debian/upstream/signing-key.asc).
+version=4
+opts=pgpmode=none \
+https://github.com/foomip/matrix-overlay/tags .*/archive/refs/tags/v?(\d[\d.]*)\.tar\.gz

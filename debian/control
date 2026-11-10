@@ -1,5 +1,10 @@
 Source: matrix-overlay
 Section: graphics
+# Policy 4.7.3 no longer *requires* a Priority field, but the dpkg shipped in
+# Ubuntu 24.04 does not yet default it for binary stanzas: omitting it makes
+# dpkg-genchanges warn and write "Priority: -" into the .changes file. Keep one
+# field here (inherited by the binary stanza) until the archive tooling catches
+# up - see Debian #1124443 on the upgrading-checklist wording.
 Priority: optional
 Maintainer: Nelson Pascoal <foomip@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13),
@@ -10,7 +15,7 @@ Build-Depends: debhelper-compat (= 13),
                libwayland-bin,
                libegl-dev,
                libgles-dev
-Standards-Version: 4.7.0
+Standards-Version: 4.7.4
 Rules-Requires-Root: no
 Homepage: https://github.com/foomip/matrix-overlay
 Vcs-Git: https://github.com/foomip/matrix-overlay.git

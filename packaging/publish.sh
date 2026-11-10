@@ -33,10 +33,14 @@ say "building matrix-overlay $VERSION from a clean copy"
       --exclude=./.pytest_cache --exclude='*-client-protocol.c' \
       --exclude='*-client-protocol.h' . ) | ( CDPATH= cd -- "$BUILD" && tar -xf - )
 ( CDPATH= cd -- "$BUILD" && dpkg-buildpackage -us -uc -b >/dev/null )
-built=$(ls -1 "$BUILD/.."/matrix-overlay_"${VERSION}"_*.deb 2>/dev/null | head -1)
+# The .deb is named with the changelog version, which carries a Debian revision
+# (0.1.1-1) now that the source is quilt format, so glob it instead of
+# reconstructing the name from the upstream version.
+built=$(ls -1t "$BUILD/.."/matrix-overlay_*_amd64.deb 2>/dev/null | head -1)
 [ -n "$built" ] || { say "the package build produced nothing"; exit 1; }
 mv -f "$built" "$ARTDIR/"
-APP=$ARTDIR/matrix-overlay_${VERSION}_amd64.deb
+APP=$ARTDIR/$(basename "$built")
+say "changelog version: $(basename "$APP" | sed -E 's/^matrix-overlay_(.*)_amd64.deb$/\1/')"
 say "app package: $APP"
 
 # ------------------------------------------------------------ build repo cfg --

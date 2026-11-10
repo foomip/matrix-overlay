@@ -1,0 +1,3 @@
+Test-Command: set -e; command -v matrix-rain; matrix-rain --help >/dev/null; matrix-rain --version | grep -q '^matrix-rain '; matrix-rain --preflight >/dev/null; test -f /usr/lib/matrix-overlay/matrix_overlay/app.py; test -f /usr/lib/matrix-overlay/native/libmwl.so; test -f /usr/share/metainfo/tech.i2r.matrixoverlay.metainfo.xml; test -f /usr/share/applications/tech.i2r.matrixoverlay.desktop; test -f /usr/share/icons/hicolor/scalable/apps/tech.i2r.matrixoverlay.svg; test -f /etc/matrix-overlay/config.toml; readelf -lW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'GNU_STACK.*RW '; readelf -lW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'GNU_RELRO'
+Depends: @, binutils
+Restrictions: skip-not-installable
