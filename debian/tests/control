@@ -2,7 +2,12 @@ Tests: smoke
 Depends: @, binutils
 
 Tests: unit
-Depends: @, binutils, python3-pytest, python3-gi, python3-gi-cairo,
+# The suite compiles the native client (make native) and drives it through
+# ctypes, so the testbed needs its own compiler and protocol headers: the
+# `build-needed` restriction builds the *package* (outside the testbed for a
+# .dsc run), which does not put a toolchain where the test runs.
+Depends: @, binutils, build-essential, pkgconf, libwayland-dev, libwayland-bin,
+ libegl-dev, libgles-dev, python3-pytest, python3-gi, python3-gi-cairo,
  gir1.2-glib-2.0, gir1.2-gtk-3.0, gir1.2-gtklayershell-0.1, gir1.2-pango-1.0,
  fonts-noto-cjk
 Restrictions: build-needed

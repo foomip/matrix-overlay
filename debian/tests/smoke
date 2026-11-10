@@ -9,8 +9,21 @@ set -eu
 command -v matrix-rain
 matrix-rain --help >/dev/null
 matrix-rain --version | grep -q '^matrix-rain [0-9]'
-matrix-rain --preflight >/dev/null
 matrix-rain --print-default-config | grep -q '^\[world\]'
+
+# The packaged modules must import in a headless testbed: that is where a
+# missing typelib or an unloadable .so shows up as a packaging defect. What
+# --preflight also answers - "can a show start *here*?" - is a property of this
+# environment, not of the package: in a container with no compositor and no
+# /dev/dri it legitimately returns 3 (no layer shell). Asserting 0 there would
+# be a test that only passes on a desktop.
+PYTHONPATH=/usr/lib/matrix-overlay /usr/bin/python3 -c \
+  'import matrix_overlay, matrix_overlay.cli, matrix_overlay.app, matrix_overlay.glsurface, matrix_overlay.mwl; print("imports ok")'
+matrix-rain --preflight || {
+  rc=$?
+  [ "$rc" -eq 3 ] || { echo "smoke: --preflight failed with $rc" >&2; exit "$rc"; }
+  echo "smoke: no compositor in this testbed (preflight 3), as expected in CI"
+}
 
 # Placement the .desktop file, the icon theme and AppStream all depend on.
 test -f /usr/lib/matrix-overlay/matrix_overlay/app.py
