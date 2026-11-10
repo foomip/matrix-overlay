@@ -1,0 +1,12 @@
+#!/bin/sh
+# The headless suite: it needs no compositor and never opens a surface, which is
+# why it is a real CI test at all. conftest.py refuses to run under an interpreter
+# without PyGObject, and the PATH `pytest` on some images is a different python, so
+# invoke the system interpreter explicitly.
+set -eu
+
+# build-needed builds the package first, but the suite imports the tree, so make
+# sure the native client exists next to it (idempotent, and cheap).
+make native
+
+/usr/bin/python3 -m pytest -q

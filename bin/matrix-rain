@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Nelson Pascoal
 # matrix-rain - thin shim for the COSMIC custom shortcut (Ctrl+Shift+M).

@@ -24,7 +24,8 @@ So: native .deb + AppStream metainfo + a signed apt repository publishing DEP-11
   filename must all equal it, because appstream-compose merges resources by
   basename.
 - License: MIT, repository public at github.com/foomip/matrix-overlay. The vendored
-  Wayland protocol XMLs keep their own copyrights (MIT / MIT-style / CC0), recorded
+  Wayland protocol XMLs keep their own copyrights (MIT, and the no-endorsement
+  X11 variant for wlr-layer-shell), recorded
   in debian/copyright rather than overwritten.
 - appstreamcli validate on the installed tree passes; the only note left is
   pedantic (metadata-provided-translation).

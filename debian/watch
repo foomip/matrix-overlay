@@ -1,6 +1,11 @@
-# GitHub publishes the tarball for every tag, which is what uscan fetches and
-# what dpkg-buildpackage then signs into the .dsc. If upstream starts signing
-# tags, set pgpmode=auto here (the key then belongs in debian/upstream/signing-key.asc).
+# GitHub serves a tarball for every tag, which is what uscan fetches and what
+# dpkg-buildpackage then records in the .dsc. The downloaded file has to be
+# renamed to the orig-tarball spelling or it has to be moved by hand every time.
+#
+# pgpmode=none while the release tags are unsigned. When they are signed, set
+# pgpmode=auto (or auto-opt-in) and put the public key in
+# debian/upstream/signing-key.asc, so a sponsor can see the tarball is upstream's.
 version=4
-opts=pgpmode=none \
+opts=pgpmode=none,\
+filenamemangle=s%(?:.*?)?v?(\d[\d.]*)\.tar\.gz%matrix-overlay_$1.orig.tar.gz% \
 https://github.com/foomip/matrix-overlay/tags .*/archive/refs/tags/v?(\d[\d.]*)\.tar\.gz

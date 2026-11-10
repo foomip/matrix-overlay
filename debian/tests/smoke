@@ -1,0 +1,29 @@
+#!/bin/sh
+# The installed package, exercised the way a user's session would find it, but
+# without ever drawing on a screen: a layer-shell surface in CI is a race with
+# whatever compositor happens to be there, and this app's whole purpose is a
+# surface nobody can assert on headlessly. Everything here is a claim about the
+# files and the command's own contract.
+set -eu
+
+command -v matrix-rain
+matrix-rain --help >/dev/null
+matrix-rain --version | grep -q '^matrix-rain [0-9]'
+matrix-rain --preflight >/dev/null
+matrix-rain --print-default-config | grep -q '^\[world\]'
+
+# Placement the .desktop file, the icon theme and AppStream all depend on.
+test -f /usr/lib/matrix-overlay/matrix_overlay/app.py
+test -f /usr/lib/matrix-overlay/native/libmwl.so
+test -f /usr/share/metainfo/tech.i2r.matrixoverlay.metainfo.xml
+test -f /usr/share/applications/tech.i2r.matrixoverlay.desktop
+test -f /usr/share/icons/hicolor/scalable/apps/tech.i2r.matrixoverlay.svg
+test -f /etc/matrix-overlay/config.toml
+test -f /usr/share/man/man1/matrix-rain.1.gz
+
+# Hardening that a C client loaded into a graphical session must keep.
+readelf -lW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'GNU_STACK.*RW '
+readelf -lW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'GNU_RELRO'
+readelf -mW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'RELACOUNT'
+
+echo "smoke: ok"

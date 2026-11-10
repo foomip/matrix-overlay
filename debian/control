@@ -1,5 +1,8 @@
 Source: matrix-overlay
-Section: graphics
+Section: x11
+# x11 is where the comparable session utilities sit (xscreensaver, waybar,
+# swaylock, mako in Ubuntu's index). Section is advisory, but "graphics" reads as
+# "image tool" to whoever reviews this.
 # Policy 4.7.3 no longer *requires* a Priority field, but the dpkg shipped in
 # Ubuntu 24.04 does not yet default it for binary stanzas: omitting it makes
 # dpkg-genchanges warn and write "Priority: -" into the .changes file. Keep one
@@ -7,10 +10,12 @@ Section: graphics
 # up - see Debian #1124443 on the upgrading-checklist wording.
 Priority: optional
 Maintainer: Nelson Pascoal <foomip@users.noreply.github.com>
+# gcc, make and dpkg-dev come from build-essential, which every build chroot
+# has; naming them unversioned is a lintian error. pkg-config is the obsolete
+# name for pkgconf.
 Build-Depends: debhelper-compat (= 13),
                python3,
-               gcc,
-               pkg-config,
+               pkgconf,
                libwayland-dev,
                libwayland-bin,
                libegl-dev,

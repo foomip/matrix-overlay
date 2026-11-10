@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import sys
 import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -74,7 +75,10 @@ def test_metainfo_has_the_fields_a_store_listing_needs():
                 "description", "url", "releases", "content_rating"):
         assert root.find(tag) is not None, f"metainfo missing <{tag}>"
     assert root.findtext("project_license").strip() == "MIT"
-    assert root.findtext("metadata_license").strip() == "CC0-1.0"
+    # One licence across the tree (see debian/copyright): the metadata licence
+    # has to agree with the copyright file or lintian calls it
+    # inconsistent-appstream-metadata-license.
+    assert root.findtext("metadata_license").strip() == "MIT"
     assert root.find("description").find("p") is not None
 
 
@@ -243,17 +247,21 @@ def test_upstream_metadata_and_watch_exist_and_agree_with_the_repo():
 
 
 @pytest.mark.skipif(not CHANGELOG.exists(), reason="debian/ not written yet")
-def test_the_autopkgtest_needs_no_display_and_no_network():
+def test_the_ci_scripts_need_no_display_and_no_network():
     """A CI test that opens a window or fetches the internet is not a test.
 
-    The suite stays headless on purpose; the CI entry point exercises the
-    installed package only, so it cannot depend on a compositor being present.
+    The suite stays headless on purpose and the smoke script makes claims about
+    files and exit codes only, so neither can depend on a compositor, a network
+    or an interactive session being present.
     """
-    control = (REPO / "debian/tests/control").read_text(encoding="utf-8")
-    assert "Test-Command:" in control, "no autopkgtest entry point"
-    for forbidden in ("--self-test", "--start", "--monitor-list", "curl ", "wget "):
-        assert forbidden not in control, f"autopkgtest must not use {forbidden}"
-    assert "--preflight" in control, "the installed command should be preflighted"
+    for name in ("smoke", "unit"):
+        path = REPO / "debian/tests" / name
+        assert path.exists() and path.stat().st_mode & 0o111, f"{name} not runnable"
+        text = path.read_text(encoding="utf-8")
+        assert text.startswith("#!"), name
+        for forbidden in ("--self-test", "--start ", "curl ", "wget ", "apt-get ",
+                          "systemctl", "WAYLAND_DISPLAY=wayland"):
+            assert forbidden not in text, f"{name} uses {forbidden}"
 
 
 def test_metainfo_latest_release_matches_the_package_version():
@@ -352,3 +360,167 @@ def test_appstream_compose_accepts_the_package_and_lists_the_component(tmp_path)
     # package from a bare tree); publish_repo.sh adds it, and
     # tests/test_repo_publish.py checks that. A component without it is a store
     # entry that cannot be installed.
+
+
+# ------------------------------------------------- archive review guards (M7) ---
+#
+# Each of these exists because a reviewer, or lintian, or a sponsor's first run,
+# would otherwise find it by hand. They are cheap and they stay put.
+
+
+def _control() -> str:
+    return (REPO / "debian/control").read_text(encoding="utf-8")
+
+
+def test_debian_control_ships_exactly_one_binary_package():
+    """`matrix-overlay-repo` must never join this upload.
+
+    A Debian binary whose job is to install a third-party apt source under
+    /etc/apt would be rejected on sight, and the source tarball does carry that
+    packaging script, so the temptation to "just add the stanza" is real.
+    """
+    stanzas = re.findall(r"^Package: (\S+)$", _control(), re.M)
+    assert stanzas == ["matrix-overlay"], stanzas
+
+
+def test_build_depends_does_not_restate_build_essential_or_obsolete_names():
+    bd = re.search(r"^Build-Depends:((?:[ \t].*\n)+)", _control(), re.M).group(1)
+    names = {n.strip().split("(")[0].strip() for n in bd.split(",") if n.strip()}
+    for essential in ("gcc", "g++", "make", "dpkg-dev", "libc6-dev"):
+        assert essential not in names, f"{essential} comes from build-essential"
+    assert "pkg-config" not in names, "pkgconf is the current name"
+    assert "pkgconf" in names, "the build needs pkg-config machinery"
+
+
+def test_a_manual_page_is_shipped_and_listed():
+    man = REPO / "debian/matrix-rain.1"
+    assert man.exists(), "an installed CLI needs a manual page (Policy 12.1)"
+    listed = (REPO / "debian/manpages").read_text(encoding="utf-8").split()
+    assert "debian/matrix-rain.1" in listed, listed
+    text = man.read_text(encoding="utf-8")
+    for mode in ("--preflight", "--diagnose", "--status", "--stop", "--self-test",
+                 "--print-default-config", "--version"):
+        assert mode in text, f"{mode} is undocumented"
+    assert ".TH MATRIX-RAIN 1" in text
+
+
+@pytest.mark.parametrize("mode,code", [("--help", 0), ("--version", 0)])
+def test_the_manual_page_promise_matches_the_parser(mode, code):
+    """The man page says these exit successfully; the parser has to agree."""
+    import subprocess
+    proc = subprocess.run([sys.executable, "-m", "matrix_overlay", mode],
+                          capture_output=True, text=True)
+    assert proc.returncode == code, (mode, proc.returncode, proc.stderr)
+
+
+def test_every_flag_the_ci_uses_actually_exists():
+    """The drift that made the autopkgtest unrunnable: a test naming a flag the
+    program never had. Parse the help output and compare."""
+    help_text = subprocess.run([sys.executable, "-m", "matrix_overlay", "--help"],
+                               capture_output=True, text=True).stdout
+    # every long option the help text mentions at all, not just the usage line:
+    # `-h, --help` appears only in the option list.
+    known = set(re.findall(r"--([a-z-]+)", help_text))
+    used: set[str] = set()
+    for path in sorted((REPO / "debian/tests").iterdir()):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            used |= set(re.findall(r"matrix-rain --([a-z-]+)", line))
+    assert used, "the CI tests use no matrix-rain flags at all?"
+    assert used <= known, f"CI asks for flags that do not exist: {sorted(used - known)}"
+
+
+def test_ci_stays_runnable_without_a_display_and_not_deprecated():
+    control = (REPO / "debian/tests/control").read_text(encoding="utf-8")
+    assert re.search(r"^Tests: smoke$", control, re.M), "no smoke entry"
+    assert re.search(r"^Tests: unit$", control, re.M), (
+        "the headless suite belongs in CI, not only on this workstation")
+    unit = control.split("Tests: unit", 1)[1]
+    assert "build-needed" in unit, "the suite runs against the source tree"
+    assert "python3-pytest" in unit and "fonts-noto-cjk" in unit
+    assert "skip-not-installable" not in control, (
+        "deprecated restriction: it can hide a regression")
+    for path in (REPO / "debian/tests/smoke", REPO / "debian/tests/unit"):
+        text = path.read_text(encoding="utf-8")
+        for forbidden in ("--self-test", "--start ", "curl ", "wget ", "apt-get "):
+            assert forbidden not in text, f"{path.name} uses {forbidden}"
+
+
+def test_the_packaged_shim_does_not_use_an_env_interpreter():
+    shebang = (REPO / "bin/matrix-rain").read_text(encoding="utf-8").splitlines()[0]
+    assert shebang == "#!/bin/bash", shebang
+
+
+def test_changelog_content_lines_fit_the_archive_width():
+    for n, line in enumerate(CHANGELOG.read_text(encoding="utf-8").splitlines(), 1):
+        if line.startswith(" -- "):
+            continue  # the trailer is dpkg's own shape
+        assert len(line) <= 80, f"changelog line {n} is {len(line)} chars"
+
+
+def test_watch_renames_the_download_to_the_orig_spelling():
+    watch = (REPO / "debian/watch").read_text(encoding="utf-8")
+    assert "filenamemangle=" in watch, watch
+    assert "orig.tar.gz" in watch
+
+
+def test_copyright_gives_each_vendored_protocol_its_own_text_and_provenance():
+    c = (REPO / "debian/copyright").read_text(encoding="utf-8")
+    # the layer-shell XML is the no-endorsement variant, so it must not be
+    # labelled with the plain Expat/MIT text
+    stanza = re.search(r"Files: native/wlr-layer-shell-unstable-v1\.xml\n(.*?)(?=\nFiles:|\Z)",
+                       c, re.S).group(1)
+    assert re.search(r"^License: X11$", stanza, re.M), stanza
+    assert "sha256" in stanza and "version 5" in stanza, (
+        "provenance lets a reviewer compare bytes instead of trusting us")
+    for name in {"MIT", "X11"}:
+        # every licence named by a Files stanza needs its own text stanza, so the
+        # name appears at least twice (once on the files, once as the text)
+        assert c.count(f"License: {name}") >= 2, f"no licence text for {name}"
+    assert "advertising" in c, "the X11 text must be quoted verbatim, not summarised"
+
+
+def test_metadata_license_agrees_with_the_copyright_file():
+    """lintian: inconsistent-appstream-metadata-license."""
+    meta = (REPO / f"assets/{ID}.metainfo.xml").read_text(encoding="utf-8")
+    declared = re.search(r"<metadata_license>([^<]+)</metadata_license>", meta).group(1)
+    copyright_text = (REPO / "debian/copyright").read_text(encoding="utf-8")
+    stanza = re.search(r"Files: assets/screenshot\.png(.*?)(?=\nLicense: )",
+                       copyright_text, re.S).group(1)
+    assert "assets/tech.i2r.matrixoverlay.metainfo.xml" in stanza, (
+        "the metainfo file itself needs a copyright stanza")
+    lic = re.search(r"Files: assets/screenshot\.png.*?\nLicense: (\S+)",
+                    copyright_text, re.S).group(1)
+    assert declared.strip() == lic, (declared, lic)
+
+
+def test_readme_source_explains_the_repack_and_the_vendoring():
+    path = REPO / "debian/README.source"
+    assert path.exists(), "a repacked orig tarball has to explain itself"
+    text = path.read_text(encoding="utf-8").lower()
+    for topic in ("strips", "wayland-protocols", "provenance", "build-needed"):
+        assert topic in text, f"README.source never mentions {topic}"
+
+
+def test_the_native_build_script_is_installed_executable(tmp_path):
+    root = tmp_path / "root"
+    proc = subprocess.run(["sh", str(REPO / "install.sh"), "--mode", "system",
+                           "--destdir", str(root)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    script = root / "usr/lib/matrix-overlay/native/build.sh"
+    assert script.stat().st_mode & 0o111, "installed scripts must be executable"
+
+
+def test_the_upstream_tag_matches_the_tree_when_one_exists():
+    """A published release should be a tag, not a dirty tree.
+
+    Skipped while HEAD is untagged (development), which is why it cannot be a
+    plain unconditional assertion.
+    """
+    found = subprocess.run(["git", "-C", str(REPO), "describe", "--tags",
+                            "--exact-match", "HEAD"], capture_output=True, text=True)
+    if found.returncode != 0:
+        pytest.skip("HEAD carries no release tag yet")
+    from matrix_overlay import __version__
+    assert found.stdout.strip() == __version__, (found.stdout.strip(), __version__)

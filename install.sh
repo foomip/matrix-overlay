@@ -106,6 +106,12 @@ case "$MODE" in
         # sources, so the first launch does not go looking for a compiler.
         copy_sub "$ROOT/native" "$LIB/native" \
             --exclude='*-client-protocol.c' --exclude='*-client-protocol.h'
+        # The native sources and build.sh ship on purpose: when the prebuilt .so
+        # is unusable (wrong driver, unusual compositor), the app can rebuild the
+        # client into a writable state dir. That only works if the script it runs
+        # is executable, and lintian is right that an installed script with a
+        # shebang should be.
+        chmod 0755 "$LIB/native/build.sh"
         # No $LIB/bin: /usr/bin/matrix-rain is the one entry point and the app
         # never reads bin/. A second copy would be a second file to keep in step.
         copy_sub "$ROOT/LICENSE" "$LIB"

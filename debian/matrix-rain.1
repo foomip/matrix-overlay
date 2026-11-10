@@ -1,0 +1,135 @@
+' -*- nroff -*-
+.TH MATRIX-RAIN 1 "2026-11-10" "matrix-overlay 0.1.2" "User Commands"
+.SH NAME
+matrix-rain \- Matrix-style digital rain over every screen on COSMIC/Wayland
+.SH SYNOPSIS
+.B matrix-rain
+.RB [ -h ]
+.RB [ --version ]
+.RB [ --config
+.IR FILE ]
+.RB [ --geometry
+.IR SPEC ]
+.RI [ MODE ]
+.SH DESCRIPTION
+.B matrix-rain
+dims the desktop and runs The Matrix "digital rain" across every monitor until
+you stop it. It is not a screensaver daemon and has no window, tray icon or
+background process: it opens one
+.IR zwlr_layer_shell_v1
+OVERLAY surface per output, grabs the keyboard exclusively, and exits when the
+show ends.
+.PP
+Press
+.B Escape
+(or click, or run
+.B matrix-rain --stop
+from a terminal) to bring the desktop back. A second invocation while a show is
+running asks the running instance to stop, so the same shortcut toggles.
+.PP
+Each surface is painted with GLES2 over EGL by a small native client, so the
+compositor imports dmabuf buffers instead of copying a CPU buffer every frame.
+If that path is unusable on a given compositor, a Cairo through GTK3 fallback is
+used instead when its dependencies are installed.
+.SH MODES
+Exactly one mode may be given. With no mode, the show starts.
+.TP
+.BR --preflight
+Report whether the interpreter, bindings and native client can start a show.
+Draws nothing.
+.TP
+.BR --diagnose
+Print one JSON document describing the compositor, the outputs, the rendering
+GPU that was selected and why, and any blockers. The probe surface is created and
+destroyed without ever attaching a buffer, so nothing is drawn on screen.
+.TP
+.BR --monitor-list
+Print the outputs as
+.IR index:name WIDTHxHEIGHT@SCALE .
+.TP
+.BR --status
+Print the live state as JSON (running, pid, outputs, readiness) and whether the
+single-instance lock is held.
+.TP
+.BR --stop
+Ask a running show to stop.
+.TP
+.BR --self-test
+Start a bounded show that asserts its own frame budget, then stop. Only sensible
+when drawing on the attached screens is acceptable.
+.TP
+.BR --print-default-config
+Write the built-in default configuration to standard output.
+.SH OPTIONS
+.TP
+.BR -h ", " --help
+Show the usage summary and exit successfully.
+.TP
+.BR -V ", " --version
+Print the program version and exit successfully.
+.TP
+.BR --config " " \fIFILE\fR
+Use this configuration file instead of the search order below.
+.TP
+.BR --geometry " " \fISPEC\fR
+Comma separated
+.IR name WxH " or " WxH+X+Y
+overrides, for tests and for forcing a layout.
+.SH CONFIGURATION
+The first file that exists wins; nothing is merged.
+.TP
+.IR $MATRIX_OVERLAY_CONFIG ", " $XDG_CONFIG_HOME/matrix-overlay/config.toml " or " ~/.config/matrix-overlay/config.toml
+the user's own file;
+.TP
+.IR /etc/matrix-overlay/config.toml
+the packaged defaults, editable by an administrator.
+.PP
+The file is re-read while a show is running, so speed, stream density, tail
+length, colours, glow, font and glyph set can be tuned live. Unknown keys are
+reported and ignored; out-of-range values are clamped and logged.
+.SH KEYBINDING
+COSMIC has no supported way for a package to register a custom shortcut, so the
+trigger is one manual step: COSMIC Settings, Keyboard, View and customize
+shortcuts, Custom shortcuts, add a shortcut named
+.IR "Matrix rain"
+running the command
+.B matrix-rain
+as a bare word, then press
+.BR Ctrl+Shift+M .
+The command line is not run by a shell, so it must not contain
+.BR $HOME ,
+redirections or quoting.
+.SH FILES
+.TP
+.IR $XDG_RUNTIME_DIR/matrix-overlay.lock
+single-instance lock (flock).
+.TP
+.IR $XDG_RUNTIME_DIR/matrix-overlay.status.json
+live status, for
+.BR --status .
+.TP
+.IR $XDG_STATE_HOME/matrix-overlay/matrix-rain.log
+log, including the reason a show stopped.
+.SH "EXIT STATUS"
+.TP
+.B 0
+success, including
+.BR --help " and " --version .
+.TP
+.B 2
+configuration error, or no Wayland display.
+.TP
+.B 3
+the compositor does not offer layer shell.
+.TP
+.B 4
+another instance already holds the lock.
+.TP
+.B 5
+diagnostics could not complete.
+.TP
+.B 64
+bad command line.
+.SH "SEE ALSO"
+The upstream repository, issue tracker and packaging notes are linked from
+.IR /usr/share/metainfo/tech.i2r.matrixoverlay.metainfo.xml .

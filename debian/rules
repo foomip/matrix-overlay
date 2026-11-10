@@ -19,9 +19,9 @@ override_dh_auto_build:
 override_dh_auto_install:
 	sh install.sh --mode system --destdir '$(CURDIR)/debian/matrix-overlay'
 
-override_dh_auto_test:
-	@if /usr/bin/python3 -c 'import pytest, gi, cairo' 2>/dev/null; then \
-		$(MAKE) test; \
-	else \
-		echo "dh_auto_test: skipped (python3-pytest, python3-gi or python3-gi-cairo absent)"; \
-	fi
+# No override_dh_auto_test on purpose. There used to be one that ran the suite
+# only if pytest, gi and cairo happened to be importable, and printed "skipped"
+# otherwise: in a clean build chroot that meant the artifact the archive builds
+# was never tested, quietly. The suite now runs as the `unit` autopkgtest with
+# `Restrictions: build-needed`, where the dependencies are declared and the
+# result is reported by debci instead of swallowed by a build log.

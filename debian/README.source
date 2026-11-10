@@ -1,0 +1,93 @@
+Source package layout and how the tarball is made
+================================================
+
+Why the tarball is a repack
+---------------------------
+
+Upstream and the Debian packaging live in one repository: `debian/` is on the
+main branch of https://github.com/foomip/matrix-overlay, next to the code. So a
+plain GitHub tag tarball contains `debian/` too, and using it as the
+`.orig.tar.gz` is a trap. Under `3.0 (quilt)`, dpkg-source unpacks the orig
+first and then lays the Debian diff over it; a packaging file that the orig
+happens to carry but that the current `debian/` no longer has lingers in the
+unpacked tree. Measured: building with the tag tarball as orig "worked", with no
+warning, because every file in that particular orig also existed in the current
+`debian/`. That is coincidence, not a safe state, and it can silently resurrect
+an old `debian/source/format` or a deleted patch.
+
+So the orig tarball is produced by `make orig`, which exports the tag and strips
+`debian/`:
+
+    make orig          # writes ../matrix-overlay_<upstream version>.orig.tar.gz
+
+`make orig` refuses to run unless a tag named exactly the upstream version
+exists, and it fixes `--mtime`, ownership and ordering from the tag's commit
+date, so two runs produce the same sha256. No `+dfsg` or repack suffix is used:
+nothing is removed for licence reasons, only the packaging directory, which is
+what git-buildpackage does too.
+
+Cutting a release, in order
+---------------------------
+
+ 1. bump the version in `matrix_overlay/__init__.py` and let the drift tests
+    fail (they compare `__init__.py`, `debian/changelog` and the AppStream
+    `<release>`, and they insist the Debian revision starts with a digit);
+ 2. add the matching `<release>` to
+    `assets/tech.i2r.matrixoverlay.metainfo.xml` and the matching
+    `debian/changelog` entry with a Debian revision (`0.1.2-1`);
+ 3. commit, then `git tag -s <upstream version>` (unsigned tags force
+    `pgpmode=none` in `debian/watch`; signed tags let a sponsor verify the
+    tarball, which is what you want before an upload);
+ 4. `make orig`;
+ 5. `dpkg-buildpackage -F -us -uc` in a staged copy, never in a working tree
+    that matters (`-F` writes `.dsc`, `.changes`, `.buildinfo` beside it);
+ 6. `lintian -i --pedantic ../<package>_<version>.changes`, `uscan --verbose`,
+    `autopkgtest`.
+
+Vendored protocol XMLs
+----------------------
+
+`native/` carries three protocol definitions and the client built from them.
+Provenance (upstream file, interface version, sha256) is recorded per file in
+`debian/copyright`, together with the licence text that actually appears in each
+one. `wlr-layer-shell-unstable-v1.xml` uses the no-endorsement X11 text, not the
+plain Expat text, so it has its own licence stanza.
+
+They are vendored on purpose. `wlr-layer-shell-unstable-v1` is not distributed by
+the `wayland-protocols` package at all, and the other two are not just build
+inputs here: the package installs `mwl.c`, `mwl.h`, `build.sh` and the XMLs under
+`/usr/lib/matrix-overlay/native/` so the layer-shell client can be *rebuilt at
+runtime* into a writable state directory when the prebuilt library does not work
+on someone's compositor. `mwl.py` hashes those sources (`sources_digest`) and
+records a stamp next to the library, which is how a read-only `/usr` install
+proves its shipped `.so` is current. Pointing the build at
+`/usr/share/wayland-protocols` would break that tested fallback path or turn a
+build-time detail into a runtime dependency. Nothing prebuilt is in the tarball:
+`native/libmwl.so` and the generated `*-client-protocol.{c,h}` are generated, and
+the `.so` is gitignored.
+
+`packaging/` is not part of the Debian binary
+--------------------------------------------
+
+`packaging/publish.sh`, `packaging/publish_repo.sh` and
+`packaging/repo-config/` are the upstream project's own release tooling: they
+sign and index a personal apt repository (with DEP-11 metadata, so a software
+centre can list the app) and build `matrix-overlay-repo`, a package that
+installs that repository's public key and source entry for people who add it by
+hand.
+
+That second binary package is deliberately absent from `debian/control`, and
+`tests/test_packaging_assets.py` fails if a second `Package:` stanza ever
+appears. A Debian binary whose job is to drop a third-party apt source into
+`/etc/apt` would be rejected, and would deserve to be.
+
+Running the tests
+-----------------
+
+The suite (`tests/`, 375 cases) is headless: it never opens a window, which is
+why it can run in a build chroot or CI. `debian/tests/unit` runs it with
+`Restrictions: build-needed`; `debian/tests/smoke` exercises the installed
+package without drawing either. `make live` needs a real session and stays a
+manual step - a live layer-shell test in distribution CI is a race with whatever
+compositor happens to be present, and this application is nothing but a
+layer-shell surface.

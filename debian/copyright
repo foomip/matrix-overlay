@@ -2,6 +2,9 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: matrix-overlay
 Upstream-Contact: Nelson Pascoal <foomip@users.noreply.github.com>
 Source: https://github.com/foomip/matrix-overlay
+Comment: The Debian packaging lives in the same repository as upstream (debian/
+ on the main branch), so the tarball exported from a tag carries a debian/
+ directory. See debian/README.source for how the orig tarball is repacked.
 
 Files: *
 Copyright: 2026 Nelson Pascoal <foomip@users.noreply.github.com>
@@ -11,22 +14,51 @@ Files: debian/*
 Copyright: 2026 Nelson Pascoal <foomip@users.noreply.github.com>
 License: MIT
 
-# Vendored protocol definitions: the package builds its own layer-shell client
-# against these, so they travel with the source rather than depending on a
-# distribution-specific copy of wayland-protocols.
+# The store artwork and the AppStream metadata are deliberately under the same
+# licence as the code: one licence to audit, and the metainfo file's
+# <metadata_license> says MIT so that a reviewer, appstream and lintian all read
+# the same answer.
+Files: assets/screenshot.png assets/tech.i2r.matrixoverlay.svg
+ assets/tech.i2r.matrixoverlay.png assets/tech.i2r.matrixoverlay.metainfo.xml
+ assets/tech.i2r.matrixoverlay.desktop assets/hicolor/*/*/apps/*.png
+Copyright: 2026 Nelson Pascoal <foomip@users.noreply.github.com>
+License: MIT
+
+# Vendored protocol definitions. They are not merely build inputs: the package
+# installs native/mwl.c, mwl.h, build.sh and these XMLs under
+# /usr/lib/matrix-overlay/native/ so that a user (or this package) can rebuild
+# the layer-shell client when the prebuilt library does not work on their
+# compositor, and mwl.sources_digest() hashes the XMLs to detect a stale build.
+# wlr-layer-shell-unstable-v1 is not distributed by wayland-protocols at all, so
+# vendoring it is the only way to build against it without dragging in wlroots.
+# The two others do exist in wayland-protocols, but switching to the distro copy
+# would break that tested rebuild path or make it a runtime dependency.
+# Provenance, so a reviewer can compare bytes without guessing:
 Files: native/wlr-layer-shell-unstable-v1.xml
 Copyright: 2017 Drew DeVault
-License: MIT
+License: X11
+Comment: from wlroots protocol/wlr-layer-shell-unstable-v1.xml; interface
+ zwlr_layer_shell_v1 version 5; sha256
+ 87e0b9c837aecd6977f76f3c47d73088b7159871f5d979dc1840f6cadb5e2ed8. This is the
+ no-endorsement variant of the MIT/X11 text, not the plain Expat text, so it is
+ licensed under its own name rather than lumped in with the others.
 
 Files: native/xdg-output-unstable-v1.xml
 Copyright: 2017 Red Hat Inc.
 License: MIT
+Comment: from wayland-protocols unstable/xdg-output/xdg-output-unstable-v1.xml;
+ interface zxdg_output_v1 version 3; sha256
+ e20aa6f87bd8cc473b7ee1175604e2e09ce8227eadadc55ad8e3f9d003c251a3
 
 Files: native/xdg-shell.xml
 Copyright: 2008-2013 Kristian Høgsberg
-         2013-2016 Rafael Antognolli, Jasper St. Pierre and the Wayland
-         contributors
+ 2013-2016 Rafael Antognolli, Jasper St. Pierre and the Wayland contributors
 License: MIT
+Comment: from wayland-protocols stable/xdg-shell/xdg-shell.xml; interface
+ xdg_wm_base version 7; sha256
+ 9d9e27038ca722f159a361293f8c6cd270dab907ab52de5b8ecfbb8d6b9651c2. It is linked
+ in by native/build.sh because the generated layer-shell code references
+ xdg_popup_interface, not because this client maps windows.
 
 License: MIT
  Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -47,3 +79,22 @@ License: MIT
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
+
+License: X11
+ Permission to use, copy, modify, distribute, and sell this software and its
+ documentation for any purpose is hereby granted without fee, provided that
+ the above copyright notice appear in all copies and that both that copyright
+ notice and this permission notice appear in supporting documentation, and
+ that the name of the copyright holders not be used in advertising or
+ publicity pertaining to distribution of the software without specific,
+ written prior permission. The copyright holders make no representations
+ about the suitability of this software for any purpose. It is provided "as
+ is" without express or implied warranty.
+  .
+ THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT
+ SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+ CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+ DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+ OF THIS SOFTWARE.
