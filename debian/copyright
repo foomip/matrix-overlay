@@ -19,8 +19,8 @@ License: MIT
 # <metadata_license> says MIT so that a reviewer, appstream and lintian all read
 # the same answer.
 Files: assets/screenshot.png assets/tech.i2r.matrixoverlay.svg
- assets/tech.i2r.matrixoverlay.png assets/tech.i2r.matrixoverlay.metainfo.xml
- assets/tech.i2r.matrixoverlay.desktop assets/hicolor/*/*/apps/*.png
+ assets/tech.i2r.matrixoverlay.metainfo.xml
+ assets/tech.i2r.matrixoverlay.desktop assets/*.png assets/*.svg
 Copyright: 2026 Nelson Pascoal <foomip@users.noreply.github.com>
 License: MIT
 
