@@ -507,6 +507,39 @@ def test_cairo_is_only_imported_at_module_scope_by_the_atlas():
     assert offenders == [], offenders
 
 
+def _wrap_tool():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "wrap_changelog", REPO / "packaging" / "wrap_changelog.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_committed_changelog_is_already_wrapped():
+    """The build fails on an over-wide entry, so catch it here rather than four
+    minutes into dpkg-buildpackage."""
+    mod = _wrap_tool()
+    text = (REPO / "debian/changelog").read_text(encoding="utf-8")
+    assert mod.wrap(text) == text, "run: /usr/bin/python3 packaging/wrap_changelog.py"
+    over = [n for n, ln in enumerate(text.splitlines(), 1)
+            if len(ln) > 80 and not ln.startswith(" -- ")]
+    assert over == [], over
+
+
+def test_the_wrapper_rewraps_a_long_bullet_without_losing_the_trailer():
+    mod = _wrap_tool()
+    sample = ("pkg (1.0-1) unstable; urgency=medium\n\n"
+              "  * one bullet " + "several words here " * 12 + "\n\n"
+              " -- A Author <a@example.com>  Tue, 01 Jan 2025 00:00:00 +0000\n")
+    out = mod.wrap(sample)
+    assert out != sample
+    assert max(len(ln) for ln in out.splitlines()) <= 80, out
+    assert out.count("* one bullet") == 1, out          # not re-bulleted twice
+    assert out.endswith("+0000\n")
+    assert mod.wrap(out) == out                          # idempotent
+
+
 def test_changelog_content_lines_fit_the_archive_width():
     for n, line in enumerate(CHANGELOG.read_text(encoding="utf-8").splitlines(), 1):
         if line.startswith(" -- "):

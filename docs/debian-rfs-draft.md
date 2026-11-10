@@ -12,14 +12,16 @@ Send it to the **sponsorship-requests** pseudo-package (Debian mentors):
 ```sh
 apt install reportbug            # or use the web form / bts
 reportbug sponsorship-requests --severity=important
-# subject: RFS: matrix-overlay/0.1.1-1 - Matrix-style digital rain over every screen on COSMIC/Wayland
+# subject: RFS: matrix-overlay/0.1.4-2 - Matrix-style digital rain over every screen on COSMIC/Wayland
 # body: the text below, plus the .dsc (debdiff against nothing for a new package)
 ```
 
-Before sending: `lintian -i --pedantic matrix-overlay_0.1.1-1_amd64.changes` must
-be clean (or each remaining tag explained in the body), and the autopkgtest must
-have been run at least once (`autopkgtest mat'` in a container). Both are
-checklist items below because neither tool is installed on the packaging box.
+Before sending, the gates were run on the packaging box (widow, Pop!_OS 24.04, with
+Docker for the container) and the results are in the pre-flight table at the end:
+`lintian --pedantic --profile debian` is clean apart from `newer-standards-version`,
+which is this box's lintian carrying older policy data than 4.7.4; both autopkgtest
+entries pass in a clean `debian:trixie` container; `uscan` finds the tag and names
+the tarball we already build from.
 
 ---
 
@@ -90,10 +92,22 @@ multi-vendor systems and the AppStream/DEP-11 publishing rules.
 - `lintian`: see the checklist below; I will post a debdiff with each tag fixed
   or argued.
 
-**What I need from a sponsor.** a review of the packaging (especially: the
-Section choice `graphics`, the vendored protocol XMLs, the autopkgtest
-dependency set), and a Salsa project so I can push VCS history
-(`deb-scan`/`salsa:debian/*/matrix-overlay` if accepted).
+**What I need from a sponsor.** A review of the packaging, especially the choices
+a reviewer would question rather than nod at: `Section: x11` (where the comparable
+session utilities live - xscreensaver, swaylock, mako, waybar), the vendored
+protocol XMLs (`wlr-layer-shell-unstable-v1.xml` is not distributed by
+`wayland-protocols`, and the two that are stay vendored because the runtime rebuild
+path hashes the files it was built against - `debian/copyright` records source,
+interface version and sha256 for each), `Architecture: any` (the C client is
+compiled; nothing else in the tree is architecture-specific), the second binary
+package `matrix-overlay-repo`, which lives in `packaging/repo-config/` and is
+deliberately **not** part of this upload (it carries my signing key and apt source
+entry, so it belongs on my own mirror, not in the archive), and the dependency set:
+pycairo and the Pango typelib are Depends because the glyph atlas is built with
+PangoCairo and uploaded to the GPU as a texture, which makes them part of the GL
+path, not of the Cairo fallback. A sponsor also needs to tell me the Salsa
+namespace conventions for a first upload; I have no DD account and would push VCS
+history once I know where it goes.
 
 **Who maintains it.** Me. I am reachable as `foomip` on GitHub; I will file the
 `ITR`/`RFS` follow-ups and answer bug reports. I am not a DD.
@@ -108,23 +122,38 @@ dependency set), and a Salsa project so I can push VCS history
 | Source format valid | `3.0 (quilt)` - the previous value `3.0 (native)` was not a real format and would have failed a source build |
 | `dpkg-buildpackage -b` | clean, no warnings except `Priority` (documented in `debian/control`) |
 | Standards-Version | 4.7.4 (Policy 4.7.4.1, 2026-03-31) |
-| Unit tests | 375 green on x86-64, AMD and hybrid GPUs |
-| Autopkgtest written | yes (`debian/tests/control`); **not yet executed** - needs `autopkgtest` + a container |
-| `lintian` clean | **not run** - lintian is not installed on the packaging box |
-| `uscan` reachable | **not run** - devscripts not installed |
-| Reproducible builds | not verified (`rbenv`/`diffoscope` not installed) |
+| Unit tests | 407 green on x86-64 (headless), run in the build and again inside the container testbed |
+| Autopkgtest written and executed | yes: two entries, `smoke` and `unit`; **both pass in a clean `debian:trixie` container** (`autopkgtest -U --output-dir … matrix-overlay_0.1.4-2.dsc -- docker debian:trixie`, exit 0). `smoke` asserts `matrix_overlay.__file__` begins with `/usr/lib/matrix-overlay`, so it cannot answer about the source copy |
+| `lintian` clean | `lintian --pedantic --profile debian matrix-overlay_0.1.4-2_amd64.changes`: no errors, no warnings except `newer-standards-version 4.7.4 (current is 4.6.2)`, which is this box's lintian policy data being older than the standard we target. A sponsor's lintian does not raise it |
+| `uscan` reachable | yes: `uscan --verbose --download-current-version` fetches the `0.1.4` tag tarball and, through `filenamemangle` + `mk-origtargz`, produces exactly `matrix-overlay_0.1.4.orig.tar.gz` (the repacked, `debian/`-free tarball `make orig` also produces) |
+| Reproducible builds | two `dpkg-buildpackage -F -us -uc` runs of the same source on this host produced byte-identical `.deb` files (sha256 `5edbea8b…`) and identical `.orig.tar.gz`. `diffoscope` is not installed and no cross-toolchain or cross-distro check was done, so this row means "deterministic here", not "verified reproducible in the archive's sense" |
 | Upstream tarball from a tag | GitHub serves `v<version>` tarballs; `debian/watch` matches them |
-| ITR (intent to package) | not filed - optional, but polite for a new package |
+| ITP (intent to package) | **not filed yet** - it goes in before the RFS, as a `wishlist`/`important` report against `sponsorship-requests` with the package description, upstream URL and licence |
 
-Filing the RFS before the lintian and autopkgtest rows are green wastes a
-sponsor's time; do those two first:
+The order that respects a sponsor's time: file the **ITP** first, upload the
+package to **mentors.debian.net** (`dput mentors matrix-overlay_0.1.4-2_amd64.changes`)
+so there is something reviewable to point at, and only then file the **RFS**
+against `sponsorship-requests`, quoting both the ITP number and the mentors URL.
+The gate commands, run from a staged copy of the tag (never from the working tree,
+which may hold generated protocol sources or caches):
 
 ```sh
-sudo apt install lintian devscripts autopkgtest
-lintian -i --pedantic ../matrix-overlay_0.1.1-1_amd64.changes
-uscan --verbose
-# run the packaged autopkgtest in a clean environment (schroot, lxd or contain):
-autopkgtest pkg/matrix-overlay -- schroot unstable-amd64-sbuild
-# or, from this tree without installing the package into the testbed first:
-autopkgtest --built-tree=.. pkg/matrix-overlay -- schroot unstable-amd64-sbuild
+sudo apt install lintian devscripts autopkgtest docker.io
+make orig ORIGDIR=~/artifacts/gate                       # tag -> reproducible orig
+mkdir -p ~/artifacts/gate/matrix-overlay-0.1.4
+git archive --format=tar --prefix=matrix-overlay-0.1.4/ 0.1.4 \
+  | tar -x -C ~/artifacts/gate
+cd ~/artifacts/gate/matrix-overlay-0.1.4 && dpkg-buildpackage -F -us -uc
+lintian --pedantic --profile debian ../matrix-overlay_0.1.4-2_amd64.changes
+uscan --verbose --download-current-version --destdir ../uscan
+# the packaged tests, in a clean container (docker needs no special privileges
+# here; autopkgtest 5.x speaks to it directly):
+autopkgtest -U --output-dir ../adt --timeout 1200 ../matrix-overlay_0.1.4-2.dsc \
+  -- docker debian:trixie
 ```
+
+The `.dsc` route is the one worth keeping green, because it is what a sponsor
+actually runs. `autopkgtest --built-tree` against an already-built directory is
+faster while iterating, but it skips `dpkg-source`, which is where half the
+packaging defects (an invalid `source/format`, a stray file under `debian/`) show
+up.

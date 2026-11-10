@@ -142,3 +142,57 @@ Both are configured through `matrix-overlay-repo`, so the store entry survives
 grogu runs the packaged install (`/usr/bin/matrix-rain`); widow keeps the
 dotfile dev install in `~/.local` and has the repository configured but the app
 not installed, which is what makes the packaged candidate visible there.
+grogu has **no** dotfile install at all, so `Ctrl+Shift+M` can only reach the
+packaged shim: there is no second copy of the app there to wonder about. Both
+boxes are on the archive-gated `0.1.4-2` (widow: candidate only, app not
+installed), and `/etc/matrix-overlay/config.toml` survived the two upgrades as a
+documented conffile (md5 unchanged).
+
+## What the archive gate found (measured)
+
+Every line here came from running the gate, not from reading policy.
+
+- **The fallback's dependency was the primary path's dependency.** The glyph
+  atlas is PangoCairo into Cairo `ImageSurface`s, then uploaded as a GL texture,
+  so `python3-cairo` and `gir1.2-pango-1.0` belong in Depends. The build that
+  declared them as Recommends installed fine and was unusable: `matrix-rain
+  --help` died on `import cairo`. What caught it was the autopkgtest `smoke`
+  entry, which installs the binary package **without** Recommends - the same
+  configuration anyone gets from `--no-install-recommends`. "It worked on the
+  developer's box" is exactly the failure mode this class has.
+- **A diagnostic must not need the thing it diagnoses.** `render.py` (Cairo
+  painter) now imports Cairo inside the three methods that draw, and the packaged
+  shim runs its preflight only when a show is about to start. Otherwise the one
+  command a stuck user reaches for (`--diagnose`) is the one command that cannot
+  run. Guarded by a test that runs the shim against an interpreter which always
+  answers "no usable backend", asserting both halves: diagnostics reach the
+  program, starting a show is still gated.
+- **`Autopkgtest: @` runs from the top of the source tree**, and `python -m
+  matrix_overlay` puts the working directory on `sys.path[0]`. An entry claiming
+  to test the *installed* package was testing the copy autopkgtest had just
+  unpacked; the giveaway was a preflight line naming
+  `/tmp/autopkgtest-.../build.*/src/native/libmwl.so`. Entries now `cd
+  "$AUTOPKGTEST_TMP"` and assert `matrix_overlay.__file__` starts with
+  `/usr/lib/matrix-overlay`. The old scratch variable is not spelled out anywhere
+  in the file - lintian's `uses-deprecated-adttmp` fires on the token in a
+  comment too.
+- **`readelf -m` does not exist.** An invalid option prints a usage block, and
+  under `set -eu` the grep under it fails as a confusing exit 1 far from the
+  cause. The hardening assertions read the dynamic section (`readelf -dW`,
+  `DT_BIND_NOW`) and the program headers (`GNU_RELRO`, non-executable `GNU_STACK`).
+- **Comments in `debian/control` must start at column 0.** An indented `#` is a
+  continuation of the field above it, so the comment text became part of the
+  `Depends:` value and broke any parser that splits on commas.
+- **Changelog lines have to fit the archive width (80).** Three releases in a row
+  failed the build on their own entry. `packaging/wrap_changelog.py` re-wraps the
+  bullets (78 columns, trailers and headers untouched), and a test asserts the
+  committed changelog is already wrapped, so the failure surfaces in seconds
+  instead of four minutes into `dpkg-buildpackage`.
+- **A packaging-only fix takes a Debian revision, not a new tag.** Tag `0.1.4`
+  names the upstream version; `0.1.4-1` and `0.1.4-2` are packaging. The orig
+  tarball exported from the tag never changes, `debian/` is the delta, and apt
+  still sorts `0.1.4-2 > 0.1.4-1 > 0.1.1-1`, so installed machines follow along.
+- **Reproducibility, measured honestly:** two `dpkg-buildpackage -F` runs of the
+  same source gave byte-identical `.deb` files here. That is not the same claim
+  as a `diffoscope` run across toolchains, which has not been done.
+
