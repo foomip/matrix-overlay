@@ -1,3 +1,20 @@
+matrix-overlay (0.1.2-1) unstable; urgency=medium
+
+  * Upstream 0.1.2: the release process and the distribution channel are now one
+    command (packaging/publish.sh / "make publish"), and adding our repository is
+    one file for a client thanks to the matrix-overlay-repo configuration
+    package (key + deb822 source entry, both conffiles).
+  * publish_repo.sh accepts repeated --deb and indexes the whole pool, so the
+    application and its repository configuration ship in one signed repository;
+    component-to-package ownership is derived per package instead of assumed.
+  * Packaging review pass: source format 3.0 (quilt), debian/watch,
+    debian/upstream/metadata, Standards-Version 4.7.4, one Priority declaration
+    in the source stanza, and an autopkgtest over the installed package.
+  * Tests: 375 green, including guards that the shipped key is public-only and
+    that the autopkgtest stays display-free and network-free.
+
+ -- Nelson Pascoal <foomip@users.noreply.github.com>  Tue, 10 Nov 2026 11:05:00 +0200
+
 matrix-overlay (0.1.1-1) unstable; urgency=medium
 
   * Source format: "3.0 (native)" is not a valid dpkg-source format string -
