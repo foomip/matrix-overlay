@@ -79,11 +79,19 @@ Verified on a fresh machine: `apt-get update` fetches
 tech.i2r.matrixoverlay` resolves to `Package: matrix-overlay`, and
 `/var/lib/swcatalog/icons/` gains `matrix-overlay-stable-main` - all before the
 package is installed, which is what makes the store entry installable rather than
-informational. Publish it with `sh packaging/publish_repo.sh --deb <deb> --out <dir>`
-(see `docs/packaging-and-store.md` for the four rules that decide whether the store
-sees anything at all). To build and publish both packages at once, run
-`sh packaging/publish.sh` (it builds the application, builds `matrix-overlay-repo`,
-publishes them into one repository and prints the push and client instructions).
+informational. To build and publish both packages at once, run `make publish`
+(it builds the application and `matrix-overlay-repo` from a clean copy, publishes
+them into one signed repository, and prints the push and client instructions);
+`sh packaging/publish_repo.sh --deb <deb> [--deb <deb>] --out <dir>` is the step
+that signs and indexes a repository.
+
+The notes worth reading before changing any of this:
+`docs/packaging-and-store.md` (the four DEP-11 rules that decide whether the
+store sees anything, the key ceremony, version numbering),
+`docs/cosmic-store-integration-plan.md` (every distribution route and its honest
+state), `docs/debian-rfs-draft.md` (the Debian sponsorship request and what is
+still unverified), and `docs/amd-gpu-egl-selection.md` (how the rendering GPU is
+chosen on multi-vendor machines).
 
 **Not a Flatpak.** cosmic-comp registers `zwlr_layer_shell_v1` through a
 `client_not_sandboxed` filter ([pop-os/cosmic-comp#2734](https://github.com/pop-os/cosmic-comp/issues/2734))

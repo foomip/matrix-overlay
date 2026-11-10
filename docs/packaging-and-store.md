@@ -67,6 +67,14 @@ copy the whole `<out>` directory: `GNUPGHOME` travels inside it.
 
 ## Client side
 
+The supported path is the configuration package: one .deb that installs the key
+and the source entry, nothing else.
+
+    curl -fsSLO https://…/pool/main/m/matrix-overlay-repo/matrix-overlay-repo_0.1.1_all.deb
+    sudo apt install ./matrix-overlay-repo_0.1.1_all.deb && sudo apt update
+
+Doing it by hand is the same two files:
+
     sudo install -d -m 755 /etc/apt/keyrings
     sudo install -m 644 matrix-overlay.gpg /etc/apt/keyrings/matrix-overlay.gpg
     printf 'deb [signed-by=/etc/apt/keyrings/matrix-overlay.gpg arch=amd64] https://… stable main\n' \
@@ -88,3 +96,49 @@ homepage and icon, and `/var/lib/swcatalog/icons/` gained
 Depends/Recommends, the packaged binary ran (`--diagnose`, AMD: radeonsi +
 `50_mesa.json` picked automatically), and `apt-get purge` plus removing the source
 and keyring left the machine exactly as it was.
+
+Over HTTPS against the published Pages site, on both workstations: the keyring
+fetched from the public URL matched the signing key, `apt-get update` fetched
+`InRelease`, `Packages`, the DEP-11 catalogue and three icon sets with no
+warnings, and `appstreamcli get tech.i2r.matrixoverlay` resolved to
+`Package: matrix-overlay`. The one-file path was then run **on grogu** exactly as
+a user would: remove the hand-written key and source, `curl` the published
+`matrix-overlay-repo` .deb, `sudo apt install ./<file>.deb`, `apt update` - after
+which the catalogue resolves again and `Candidate: 0.1.1-1`. Both boxes were then
+upgraded `0.1.1 -> 0.1.1-1` by apt, with `/etc/matrix-overlay/config.toml` kept.
+
+## Version numbering, and why the .deb says `0.1.1-1`
+
+Three places state the **upstream** version and move together:
+`matrix_overlay/__init__.py`, the AppStream `<release version=...>`, and the git
+tag. `debian/changelog` carries the **Debian** version with a revision
+(`0.1.1-1`), because the source format is `3.0 (quilt)` and the archive expects
+that form for a package whose tarball comes from an upstream tag. apt orders
+`0.1.1-1` above `0.1.1`, so adopting the scheme did not strand the installs
+already published. The consistency test compares the *upstream* part of the
+changelog version with `__version__` and the metainfo and insists the revision
+starts with a digit, so a stray hyphen in an upstream version still fails.
+
+`matrix-overlay-repo` versions with the upstream release, not the Debian
+revision: it is configuration, not a rebuild of the app.
+
+## One field that is not free: `Priority`
+
+Policy 4.7.3 stopped requiring `Priority`, and the upgrading checklist implies
+you may drop it. Measured on this box, that is not safe yet: with no Priority
+anywhere, `dpkg-genchanges` warns and writes `Priority: -` into the `.changes`
+(Debian #1124443 is about that checklist wording). `debian/control` therefore
+declares it **once**, in the source stanza, and the binary stanza inherits it -
+quiet under old tooling, harmless under new. A test pins that shape so nobody
+"modernises" it back into a warning.
+
+## Where the two workstations stand
+
+Both are configured through `matrix-overlay-repo`, so the store entry survives
+`apt-get update`. Undoing it is one command per box:
+
+    sudo apt-get purge matrix-overlay-repo    # removes the keyring and the source entry
+
+grogu runs the packaged install (`/usr/bin/matrix-rain`); widow keeps the
+dotfile dev install in `~/.local` and has the repository configured but the app
+not installed, which is what makes the packaged candidate visible there.
