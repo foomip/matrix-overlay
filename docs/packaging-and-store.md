@@ -45,12 +45,25 @@ found by measurement and each silent when broken:
    the script injects `Package: <pkgname>` per id - Pop's own spelling.
 
 Everything under `dists/<suite>` is regenerated on each run; `pool/` and the signing
-key are kept, so republishing never rotates the key. The key is ed25519 and
-**sign-only** (subkey usage `E`, no certification/sign-authentication capability, so
-it cannot masquerade as a signing key for other people's data). Its private half
-lives in `<out>/.gnupg` (0700) and the revocation certificate in `<out>/revocation`
-(0700): neither is ever published, and losing either means clients cannot be told
-to distrust us.
+key are kept, so republishing never rotates the key.
+
+About that key, stated exactly: it is a **primary** ed25519 key created with
+`--quick-generate-key ... sign never`, so it has no encryption or authentication
+capability; like every primary key it also self-certifies its own uid, so
+`gpg --list-keys` reports `[SC]`. There are no subkeys. The secret key has **no
+passphrase**, because publishing has to sign unattended - which means the
+`0700` permissions on `<out>/.gnupg` are the only protection it has. Anyone who can
+read `private-keys-v1.d/*.key` can publish packages that every client pinning this
+keyring will accept and install. Treat the directory like a password: encrypted
+backup, off the publishing machine, never in git.
+
+Back up all of it: `<out>/.gnupg` (secret key, public keyring, trustdb and
+`openpgp-revocs.d/`), `<out>/revocation/revoke-<fpr>.rev`, and a copy of
+`<out>/keyring/matrix-overlay.gpg` (public, already published). Losing the private
+key means we cannot sign new metadata, so clients stop updating; losing the
+revocation certificate means we cannot tell clients to distrust a key we can no
+longer keep secret - so rotate instead. To move publishing to another machine,
+copy the whole `<out>` directory: `GNUPGHOME` travels inside it.
 
 ## Client side
 
