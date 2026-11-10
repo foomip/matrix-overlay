@@ -35,8 +35,11 @@ test -f /etc/matrix-overlay/config.toml
 test -f /usr/share/man/man1/matrix-rain.1.gz
 
 # Hardening that a C client loaded into a graphical session must keep.
+# Hardening that a C client loaded into a graphical session must keep. (There is
+# no `readelf -m`: an invalid option prints a usage block, and the grep under it
+# fails with a confusing exit 1 - found the hard way in CI.)
 readelf -lW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'GNU_STACK.*RW '
 readelf -lW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'GNU_RELRO'
-readelf -mW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'RELACOUNT'
+readelf -dW /usr/lib/matrix-overlay/native/libmwl.so | grep -q 'BIND_NOW'
 
 echo "smoke: ok"
