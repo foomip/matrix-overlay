@@ -14,6 +14,8 @@ import fcntl
 import json
 import os
 import signal
+import sys
+import subprocess
 
 import pytest
 
@@ -403,3 +405,16 @@ def test_main_still_reports_an_unknown_option_as_usage(capsys):
 def test_the_mode_flags_are_all_mutually_exclusive_as_before():
     with pytest.raises(cli.UsageError):
         cli.parse_args(["--status", "--stop"])
+
+
+def test_monitor_list_without_a_session_reports_instead_of_crashing():
+    """`--monitor-list` is what someone types when the outputs look wrong, so a
+    traceback is the worst possible answer. It gets one line and status 3."""
+    env = dict(os.environ)
+    env.pop("WAYLAND_DISPLAY", None)
+    env.pop("DISPLAY", None)
+    proc = subprocess.run([sys.executable, "-m", "matrix_overlay", "--monitor-list"],
+                          capture_output=True, text=True, env=env, timeout=120)
+    assert proc.returncode == 3, (proc.returncode, proc.stdout, proc.stderr)
+    assert "no Wayland display" in proc.stderr, proc.stderr
+    assert "Traceback" not in proc.stderr, proc.stderr

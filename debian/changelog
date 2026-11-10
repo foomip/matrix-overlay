@@ -1,3 +1,33 @@
+matrix-overlay (0.1.3-1) unstable; urgency=medium
+
+  * The packaged wrapper no longer runs its backend preflight for diagnostic
+    modes: on a machine where no backend is usable, `matrix-rain --diagnose`,
+    --status, --preflight, --monitor-list and --help all exited 3 before the
+    program could explain anything. Only starting a show (including --self-test)
+    is gated now.
+  * A mode that has to ask the compositor something, finding no session, reports
+    one line and exits 3 (NoWayland) instead of raising a traceback.
+  * Manual page added (debian/matrix-rain.1): modes, options, configuration
+    search order, keybinding, files, exit statuses - including that --status and
+    --stop return 1 when nothing is running.
+  * debian/copyright corrected for the vendored protocol files (the layer-shell
+    XML is the no-endorsement X11 text, not MIT) and records source file,
+    interface version and sha256 for each. Artwork and metainfo are MIT, which
+    clears inconsistent-appstream-metadata-license.
+  * debian/tests: two entries, `smoke` (installed package) and `unit` (the
+    suite, build-needed). Both now pass in a clean debian:trixie container;
+    they had been failing on `make` (the testbed needs its own toolchain) and
+    on gdk-pixbuf's SVG loader (librsvg2-common).
+  * Section moves to x11; Build-Depends drops gcc (build-essential) and
+    pkg-config (pkgconf); the shim stops using `env bash`; native/build.sh is
+    installed executable; the publishing scripts name /usr/bin/python3 (an asdf
+    shim in PATH failed with 126 inside a package build).
+  * Tests: 405, including guards that CI cannot reference a flag the parser does
+    not have, that exactly one binary package is defined, and that the shim does
+    not gate diagnostics.
+
+ -- Nelson Pascoal <foomip@users.noreply.github.com>  Tue, 10 Nov 2026 12:40:00 +0200
+
 matrix-overlay (0.1.2-1) unstable; urgency=medium
 
   * Upstream 0.1.2: the release process and the distribution channel are now one

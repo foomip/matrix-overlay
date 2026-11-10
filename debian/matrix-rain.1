@@ -115,11 +115,18 @@ log, including the reason a show stopped.
 success, including
 .BR --help " and " --version .
 .TP
+.B 1
+for
+.BR --status " or " --stop
+when no show is running. The JSON from
+.BR --status " says the same thing; "
+the status exists so a script can branch without parsing it.
+.TP
 .B 2
 configuration error, or no Wayland display.
 .TP
 .B 3
-the compositor does not offer layer shell.
+there is no Wayland session to ask, or that session does not offer layer shell.
 .TP
 .B 4
 another instance already holds the lock.

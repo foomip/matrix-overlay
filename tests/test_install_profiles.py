@@ -92,6 +92,10 @@ def test_home_is_the_fallback_for_xdg_config_home(tmp_path, monkeypatch):
 
 def test_state_dir_follows_xdg_state_home(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    # A private runtime dir: RUNTIME_LOCK and the status file live there, and a
+    # shared one would make --stop/--status answer about someone else's session.
+    (tmp_path / "run").mkdir(exist_ok=True)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "run"))
     assert cli.state_dir() == tmp_path / "state/matrix-overlay"
 
 
@@ -161,6 +165,10 @@ def test_ensure_library_stages_from_the_install_tree_when_it_is_read_only(tmp_pa
     os.chmod(ro / "build.sh", 0o755)
     monkeypatch.setattr(mwl_mod, "DEFAULT_LIB", ro / "libmwl.so")
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    # A private runtime dir: RUNTIME_LOCK and the status file live there, and a
+    # shared one would make --stop/--status answer about someone else's session.
+    (tmp_path / "run").mkdir(exist_ok=True)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "run"))
     os.chmod(ro, 0o555)
     try:
         lib = mwl_mod.ensure_library()
@@ -352,3 +360,80 @@ def test_config_module_default_matches_the_new_chain(tmp_path, monkeypatch):
     path = cli.config_path(cli.Options())
     store = config_mod.ConfigStore(path, cli._neutral_caps())
     assert store.load() == config_mod.load_default()
+
+
+# ------------------------------------------------- the shim's preflight gate ----
+#
+# The shim exists to pin the interpreter and the typelib environment, and it used
+# to preflight *every* invocation. On a machine where no backend is usable that
+# made `matrix-rain --diagnose`, `--status`, `--preflight` and even `--help` exit
+# 3 before the program could say anything - the one moment a diagnosis is needed,
+# the diagnosis was blocked. Found by the autopkgtest, in a container with no
+# compositor, which is exactly the environment where the difference shows.
+
+
+def _shim_env(tmp_path, monkeypatch, *, backend_broken: bool) -> dict:
+    """Env for running bin/matrix-rain against this tree, optionally with an
+    interpreter that always answers `--preflight` with 'no usable backend'."""
+    fake = tmp_path / "python-fake"
+    if backend_broken:
+        fake.write_text('#!/bin/sh\nfor a in "$@"; do [ "$a" = "--preflight" ] && '
+                        'exit 3; done\nexec /usr/bin/python3 "$@"\n', encoding="utf-8")
+        fake.chmod(0o755)
+        python = str(fake)
+    else:
+        python = "/usr/bin/python3"
+    monkeypatch.setenv("MATRIX_OVERLAY_PYTHON", python)
+    monkeypatch.setenv("MATRIX_OVERLAY_DIR", str(REPO))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    # A private runtime dir: RUNTIME_LOCK and the status file live there, and a
+    # shared one would make --stop/--status answer about someone else's session.
+    (tmp_path / "run").mkdir(exist_ok=True)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "run"))
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    return {}
+
+
+# `--preflight` cannot be answered by exit code in this harness (the fake
+# interpreter intercepts exactly that argument), so it is checked through the
+# log: the shim must not have run its own gate.
+def test_preflight_itself_is_not_gated(tmp_path, monkeypatch):
+    env = dict(os.environ, **_shim_env(tmp_path, monkeypatch, backend_broken=True))
+    subprocess.run(["bash", str(REPO / "bin/matrix-rain"), "--preflight"],
+                   capture_output=True, text=True, env=env, timeout=120)
+    log = tmp_path / "state" / "matrix-overlay" / "matrix-rain.log"
+    written = log.read_text(encoding="utf-8") if log.exists() else ""
+    assert "preflight FAILED" not in written, written
+
+
+@pytest.mark.parametrize("flag,want", [("--help", 0), ("--version", 0),
+                                       ("--print-default-config", 0),
+                                       ("--status", 1),      # nothing is running
+                                       ("--stop", 1),        # nothing is running
+                                       ("--monitor-list", 3)])  # no session here
+def test_diagnostics_reach_the_program_even_with_no_usable_backend(tmp_path,
+                                                                   monkeypatch,
+                                                                   flag, want):
+    """The shim's preflight gate must not stand between a person and a diagnosis.
+
+    `want` is what the *program* answers in this environment (no compositor,
+    nothing running); what matters is that the shim did not answer first: the log
+    must not contain its "preflight FAILED" line.
+    """
+    env = dict(os.environ, **_shim_env(tmp_path, monkeypatch, backend_broken=True))
+    proc = subprocess.run(["bash", str(REPO / "bin/matrix-rain"), flag],
+                          capture_output=True, text=True, env=env, timeout=120)
+    assert proc.returncode == want, (flag, proc.returncode, proc.stdout, proc.stderr)
+    log = tmp_path / "state" / "matrix-overlay" / "matrix-rain.log"
+    written = log.read_text(encoding="utf-8") if log.exists() else ""
+    assert "preflight FAILED" not in written, (flag, written)
+
+
+def test_starting_a_show_is_still_gated_and_reports_the_reason(tmp_path, monkeypatch):
+    env = dict(os.environ, **_shim_env(tmp_path, monkeypatch, backend_broken=True))
+    proc = subprocess.run(["bash", str(REPO / "bin/matrix-rain")],
+                          capture_output=True, text=True, env=env, timeout=60)
+    assert proc.returncode == 3, (proc.returncode, proc.stdout, proc.stderr)
+    log = tmp_path / "state" / "matrix-overlay" / "matrix-rain.log"
+    assert "preflight FAILED" in log.read_text(encoding="utf-8"), (
+        proc.returncode, proc.stdout, proc.stderr)

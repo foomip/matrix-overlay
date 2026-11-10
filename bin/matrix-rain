@@ -59,10 +59,26 @@ unset GI_TYPELIB_PATH LD_LIBRARY_PATH
 export GDK_BACKEND=wayland
 export PYTHONPATH="$APP_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
-if ! "$PYTHON" -m matrix_overlay --preflight >>"$LOG_FILE" 2>&1; then
-  printf '%s preflight FAILED: no usable backend (reason above)\n' \
-    "$(date -Iseconds)" >>"$LOG_FILE"
-  exit 3
+# The preflight is only worth running when a show is about to start. Every other
+# mode has to work in an environment where no backend is usable - that is exactly
+# the moment someone needs `--diagnose`, `--status` or `--preflight` itself, and a
+# gate here returned 3 before the program could explain anything. `--self-test`
+# does start a (bounded) show, so it stays behind the gate.
+starts_a_show=true
+for arg in "$@"; do
+  case "$arg" in
+    --preflight|--print-default-config|--monitor-list|--diagnose|--status|--stop|\
+    -h|--help|-V|--version)
+      starts_a_show=false ;;
+  esac
+done
+
+if $starts_a_show; then
+  if ! "$PYTHON" -m matrix_overlay --preflight >>"$LOG_FILE" 2>&1; then
+    printf '%s preflight FAILED: no usable backend (reason above)\n' \
+      "$(date -Iseconds)" >>"$LOG_FILE"
+    exit 3
+  fi
 fi
 
 exec "$PYTHON" -m matrix_overlay "$@"

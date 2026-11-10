@@ -52,6 +52,16 @@ class UsageError(ValueError):
     pass
 
 
+class NoWayland(UsageError):
+    """A mode that has to ask the compositor something found no session.
+
+    Distinct from a usage mistake: the command line was fine, the environment is
+    not a graphical session. It gets its own status (3) and a one-line message
+    instead of a traceback, because `--monitor-list` and `--diagnose` are exactly
+    what someone runs when something is already wrong.
+    """
+
+
 @dataclasses.dataclass(frozen=True)
 class Options:
     mode: str = "run"
@@ -753,13 +763,17 @@ def display_monitors(opts: Options):
     import gi
 
     gi.require_version("Gtk", "3.0")
+    # Naming Gdk explicitly: without it PyGObject loads whichever Gdk version is
+    # already resident and prints a warning onto stderr - which, for a JSON mode
+    # like --monitor-list, is noise where an answer should be.
+    gi.require_version("Gdk", "3.0")
     from gi.repository import Gdk
 
     from .surface import select_monitors, unmatched_entries
 
     display = Gdk.Display.get_default()
     if display is None:
-        raise UsageError("no Wayland display (is WAYLAND_DISPLAY set?)")
+        raise NoWayland("no Wayland display (is WAYLAND_DISPLAY set?)")
     cfg = ConfigStore(config_path(opts), _neutral_caps()).load()
     infos = select_monitors(display, mode=cfg.outputs.mode, listed=cfg.outputs.listed)
     for entry in unmatched_entries(display, listed=cfg.outputs.listed):
@@ -848,7 +862,11 @@ def gl_status() -> dict[str, Any]:
 
 
 def monitor_list(opts: Options) -> int:
-    infos = cli_monitors(opts)
+    try:
+        infos = cli_monitors(opts)
+    except NoWayland as exc:
+        eprint(f"matrix-rain: {exc}")
+        return EXIT_NO_LAYER_SHELL
     print(as_json([{f.name: getattr(m, f.name) for f in dataclasses.fields(m)
                     if f.name != "monitor"} | {"key": m.name} for m in infos]))
     return EXIT_OK
@@ -1219,7 +1237,13 @@ def main(argv: list[str] | None = None) -> int:
         outcome = stop_instance(RUNTIME_LOCK, kill=os.kill, holder_alive=pid_alive)
         print(outcome)
         return EXIT_OK if outcome != "not-running" else 1
-    return run(opts)
+    try:
+        return run(opts)
+    except NoWayland as exc:
+        # Same shape as the diagnostic modes: say what is missing, once, and use
+        # the status the man page promises.
+        eprint(f"matrix-rain: {exc}")
+        return EXIT_NO_LAYER_SHELL
 
 
 def _Capabilities(probe: dict[str, Any], scales: tuple[int, ...] = ()) -> Capabilities:

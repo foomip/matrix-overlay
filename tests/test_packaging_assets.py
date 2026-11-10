@@ -518,6 +518,8 @@ def test_the_upstream_tag_matches_the_tree_when_one_exists():
     Skipped while HEAD is untagged (development), which is why it cannot be a
     plain unconditional assertion.
     """
+    if shutil.which("git") is None or (REPO / ".git").exists() is False:
+        pytest.skip("no git checkout here (a source copy is all an autopkgtest sees)")
     found = subprocess.run(["git", "-C", str(REPO), "describe", "--tags",
                             "--exact-match", "HEAD"], capture_output=True, text=True)
     if found.returncode != 0:

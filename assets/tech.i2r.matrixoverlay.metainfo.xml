@@ -80,6 +80,16 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.1.3" date="2026-11-10">
+      <description>
+        <p>Diagnosis first: the command now answers --help, --version,
+        --diagnose, --status and --monitor-list even on a machine where no
+        backend can start a show, because that is exactly when someone needs to
+        ask what is wrong. A missing Wayland session is reported in one line
+        instead of a stack trace, and a manual page documents the modes and the
+        exit statuses.</p>
+      </description>
+    </release>
     <release version="0.1.2" date="2026-11-10">
       <description>
         <p>Adding the repository is now one file: a small configuration package
