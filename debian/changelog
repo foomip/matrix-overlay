@@ -1,3 +1,22 @@
+matrix-overlay (0.1.4-1) unstable; urgency=medium
+
+  * Dependencies corrected. The glyph atlas is built with PangoCairo into
+    Cairo ImageSurfaces and uploaded as a GL texture, so pycairo
+    (`python3-cairo`) and the Pango typelib (`gir1.2-pango-1.0`) are needed by
+    the GL path as much as by the Cairo painter, and they move from
+    nothing/Recommends to Depends. `autopkgtest smoke` installs the binary
+    package without Recommends and died on `import cairo`: that is the
+    configuration anyone gets when installing with --no-install-recommends.
+  * `matrix_overlay/render.py` (the fallback painter) imports Cairo inside the
+    three methods that draw instead of at module scope, so importing the package
+    far enough to run --diagnose no longer requires the fallback's dependency.
+  * debian/control comments moved to column 0: an indented `#` inside a field
+    continuation becomes part of the field value.
+  * Tests: 407, including guards that the atlas's import providers stay in
+    Depends and that no module besides atlas.py names Cairo at import time.
+
+ -- Nelson Pascoal <foomip@users.noreply.github.com>  Tue, 10 Nov 2026 12:46:27 +0200
+
 matrix-overlay (0.1.3-2) unstable; urgency=medium
 
   * autopkgtest `smoke` only: the hardening assertion used `readelf -m`, which

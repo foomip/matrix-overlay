@@ -8,6 +8,7 @@ mode that ships a 0.1.0 package describing itself as 0.0.x.
 """
 from __future__ import annotations
 
+import ast
 import re
 import shutil
 import sys
@@ -450,6 +451,60 @@ def test_ci_stays_runnable_without_a_display_and_not_deprecated():
 def test_the_packaged_shim_does_not_use_an_env_interpreter():
     shebang = (REPO / "bin/matrix-rain").read_text(encoding="utf-8").splitlines()[0]
     assert shebang == "#!/bin/bash", shebang
+
+
+
+
+def _control_fields() -> dict[str, str]:
+    """The source package stanza of debian/control as field -> value."""
+    text = (REPO / "debian/control").read_text(encoding="utf-8")
+    stanza = next(b for b in text.split("\n\n") if b.startswith("Package: matrix-overlay\n"))
+    out, field = {}, None
+    for line in stanza.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        if not line.startswith((" ", "\t")) and ":" in line:
+            field, _, value = line.partition(":")
+            out[field.strip()] = value.strip()
+        elif field:
+            out[field] += " " + line.strip()
+    return out
+
+
+def test_the_primary_paths_hard_imports_are_depends_not_recommends():
+    """The glyph atlas is PangoCairo -> Cairo ImageSurface -> GL texture, so both
+    backends need pycairo and the Pango typelib. The autopkgtest `smoke` entry
+    installs this package with its Depends and no Recommends, and it died on
+    `import cairo` before these lines were in Depends. A Recommends-only pycairo
+    is not 'usually installed': it is 'broken when someone installs without
+    recommends', which is exactly the configuration CI runs.
+    """
+    fields = _control_fields()
+    names = lambda field: {b.split("(")[0].strip() for b in fields.get(field, "").split(",") if b.strip()}
+    depends, recommends = names("Depends"), names("Recommends")
+    for pkg in ("python3-cairo", "gir1.2-pango-1.0", "python3-gi"):
+        assert pkg in depends, f"{pkg} must be a Depends (the atlas needs it): {depends}"
+        assert pkg not in recommends, f"{pkg} belongs in Depends, not Recommends"
+    assert not (depends & {"python3-gi-cairo"}), (
+        "python3-gi-cairo is PyGObject's Cairo integration for the GTK fallback; "
+        "the module `cairo` itself comes from python3-cairo")
+
+
+def test_cairo_is_only_imported_at_module_scope_by_the_atlas():
+    """Any other module that names cairo at import time drags the fallback's
+    dependency into the import graph, and then a machine with a broken GL path
+    cannot even run `--diagnose` to find out why."""
+    offenders = []
+    for path in sorted((REPO / "matrix_overlay").glob("*.py")):
+        if path.name == "atlas.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                names = [a.name for a in node.names]
+                if any(n and n.split(".")[0] == "cairo" for n in names):
+                    offenders.append(f"{path.name}:{node.lineno}")
+    assert offenders == [], offenders
 
 
 def test_changelog_content_lines_fit_the_archive_width():

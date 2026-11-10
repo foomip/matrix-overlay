@@ -7,6 +7,10 @@ handler - and high-resolution atlas surfaces are mapped into it with a pattern
 matrix. That keeps HiDPI glyphs crisp (DP-4 measured scale=2) without the
 renderer ever needing to know about device pixels.
 
+Cairo is imported inside the methods that draw, not at module scope: this is the
+*fallback* painter, and a machine whose GL path is broken still has to be able to
+import the package far enough to run ``--diagnose``.
+
 Three invariants this module exists to protect:
   1. every draw clears its own cell first (Cairo OVER accumulates alpha, so a
      churning glyph would otherwise grow brighter every frame it is redrawn);
@@ -18,8 +22,6 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Callable, Iterable
-
-import cairo
 
 from .atlas import level_from_brightness
 from .world import Crop, Draw, OutputFrame, Pos, WorldCanvas
@@ -152,6 +154,7 @@ class Renderer:
     # ---------------------------------------------------------- paint ---
 
     def _clear_rect(self, cr, rect: Rect) -> None:
+        import cairo
         cr.save()
         cr.set_operator(cairo.Operator.DEST_OUT)
         cr.set_source_rgb(0.0, 0.0, 0.0)
@@ -168,6 +171,8 @@ class Renderer:
             cr.set_operator(operator)
         cr.translate(x, y)
         cr.scale(k, k)
+        import cairo
+
         pat = cairo.SurfacePattern(surface)
         pat.set_filter(cairo.FILTER_GOOD)
         cr.set_source(pat)
@@ -179,6 +184,7 @@ class Renderer:
         cr.restore()
 
     def _paint_cell(self, cr, d: Draw, rect: Rect) -> None:
+        import cairo
         level = level_from_brightness(d.brightness)
         if level <= 0:
             return

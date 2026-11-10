@@ -80,6 +80,16 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.1.4" date="2026-11-10">
+      <description>
+        <p>Dependency honesty: the package now declares pycairo and the Pango
+        typelib as hard dependencies, because the glyph atlas is built with
+        PangoCairo and uploaded to the GPU as a texture, so the GL path needs
+        them too; installing without recommends used to leave an unusable
+        install. The fallback painter imports Cairo only when it draws, so a
+        machine with a broken GL path can still run --diagnose.</p>
+      </description>
+    </release>
     <release version="0.1.3" date="2026-11-10">
       <description>
         <p>Diagnosis first: the command now answers --help, --version,

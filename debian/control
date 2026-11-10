@@ -28,14 +28,24 @@ Vcs-Browser: https://github.com/foomip/matrix-overlay
 
 Package: matrix-overlay
 Architecture: any
+# pycairo and the Pango typelib are not optional, whatever the backend: the glyph
+# atlas is built with PangoCairo into Cairo ImageSurfaces and then uploaded as a
+# GL texture, so the GL path needs them exactly as much as the Cairo painter does.
+# The autopkgtest `smoke` entry installs this package with its Depends and no
+# Recommends, and it died on `import cairo` before these two were listed here.
+# Comments in control files must start at column 0: inside a field's continuation
+# lines they become part of the value.
 Depends: ${misc:Depends},
          ${shlibs:Depends},
          python3,
          python3-gi,
-         gir1.2-glib-2.0
+         gir1.2-glib-2.0,
+         python3-cairo,
+         gir1.2-pango-1.0
 Recommends: gir1.2-gtk-3.0,
             gir1.2-gtklayershell-0.1,
-            python3-gi-cairo
+            python3-gi-cairo,
+            fonts-noto-cjk
 Suggests: cosmic-settings-daemon
 Description: Matrix-style digital rain over every screen on COSMIC/Wayland
  A fullscreen overlay that runs The Matrix "digital rain" across every monitor
