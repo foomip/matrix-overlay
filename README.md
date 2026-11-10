@@ -53,7 +53,18 @@ live under `$XDG_STATE_HOME/matrix-overlay` (`$HOME/.local/state` fallback).
 ## Install from the apt repository (what software centres see)
 
 The published repository is signed and publishes the AppStream catalogue, so the
-app shows up in COSMIC Store search and installs from there. To add it by hand:
+app shows up in COSMIC Store search and installs from there.
+
+**Add the repository with one file** (this is the whole setup - it installs the
+signing public key and the source entry, and nothing else):
+
+```sh
+curl -fsSLO https://foomip.github.io/matrix-overlay/pool/main/m/matrix-overlay-repo/matrix-overlay-repo_0.1.1_all.deb
+sudo apt install ./matrix-overlay-repo_0.1.1_all.deb && sudo apt update
+apt-cache policy matrix-overlay          # Candidate: 0.1.1
+```
+
+Or do it by hand, which is the same two files:
 
 ```sh
 sudo install -d -m 755 /etc/apt/keyrings
@@ -61,7 +72,6 @@ sudo install -m 644 matrix-overlay.gpg /etc/apt/keyrings/matrix-overlay.gpg
 printf 'deb [signed-by=/etc/apt/keyrings/matrix-overlay.gpg arch=amd64] https://foomip.github.io/matrix-overlay stable main\n' \
     | sudo tee /etc/apt/sources.list.d/matrix-overlay.list
 sudo apt-get update
-apt-cache policy matrix-overlay          # Candidate: 0.1.1
 ```
 
 Verified on a fresh machine: `apt-get update` fetches
@@ -71,7 +81,9 @@ tech.i2r.matrixoverlay` resolves to `Package: matrix-overlay`, and
 package is installed, which is what makes the store entry installable rather than
 informational. Publish it with `sh packaging/publish_repo.sh --deb <deb> --out <dir>`
 (see `docs/packaging-and-store.md` for the four rules that decide whether the store
-sees anything at all).
+sees anything at all). To build and publish both packages at once, run
+`sh packaging/publish.sh` (it builds the application, builds `matrix-overlay-repo`,
+publishes them into one repository and prints the push and client instructions).
 
 **Not a Flatpak.** cosmic-comp registers `zwlr_layer_shell_v1` through a
 `client_not_sandboxed` filter ([pop-os/cosmic-comp#2734](https://github.com/pop-os/cosmic-comp/issues/2734))

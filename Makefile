@@ -9,7 +9,7 @@ PYTHON ?= /usr/bin/python3
 # shims are asdf pythons without gi.
 
 .PHONY: native test live selftest preflight diagnose install-dotfile \
-	uninstall-dotfile install-system uninstall-system clean
+	uninstall-dotfile install-system uninstall-system repo-config publish clean
 
 native:
 	sh native/build.sh
@@ -46,3 +46,13 @@ clean:
 	rm -f native/*-client-protocol.c native/*-client-protocol.h
 	find . -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .pytest_cache
+
+# The "add our repository" package: the signing public key plus the source entry,
+# so installing from the store is one file for anyone else.
+repo-config:
+	sh packaging/repo-config/build.sh
+
+# Build the application and the repository package, then sign and index them into
+# one repository. Prints the push-to-Pages and client instructions afterwards.
+publish:
+	sh packaging/publish.sh
