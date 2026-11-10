@@ -6,6 +6,16 @@
 # files and the command's own contract.
 set -eu
 
+# An `Autopkgtest: @` entry runs from the top of the *source* tree, and
+# `python -m matrix_overlay` puts the working directory on sys.path: without this
+# cd, the entry exercises the source copy while claiming to test the installed
+# package. (It did - the preflight line named the build directory.)
+# AUTOPKGTEST_TMP is autopkgtest's scratch directory; the older adt-run variable
+# of the same purpose is deliberately not spelled out here, because lintian warns
+# on any mention of it, comment included. The mktemp fallback keeps this entry
+# runnable by hand. Either way, the directory is outside the source tree.
+cd "${AUTOPKGTEST_TMP:-$(mktemp -d)}"
+
 command -v matrix-rain
 matrix-rain --help >/dev/null
 matrix-rain --version | grep -q '^matrix-rain [0-9]'
@@ -18,7 +28,10 @@ matrix-rain --print-default-config | grep -q '^\[world\]'
 # /dev/dri it legitimately returns 3 (no layer shell). Asserting 0 there would
 # be a test that only passes on a desktop.
 PYTHONPATH=/usr/lib/matrix-overlay /usr/bin/python3 -c \
-  'import matrix_overlay, matrix_overlay.cli, matrix_overlay.app, matrix_overlay.glsurface, matrix_overlay.mwl; print("imports ok")'
+  'import matrix_overlay, matrix_overlay.cli, matrix_overlay.app, matrix_overlay.glsurface, matrix_overlay.mwl
+print("imported from", matrix_overlay.__file__)
+assert matrix_overlay.__file__.startswith("/usr/lib/matrix-overlay/"), matrix_overlay.__file__
+print("imports ok")'
 matrix-rain --preflight || {
   rc=$?
   [ "$rc" -eq 3 ] || { echo "smoke: --preflight failed with $rc" >&2; exit "$rc"; }
@@ -34,7 +47,6 @@ test -f /usr/share/icons/hicolor/scalable/apps/tech.i2r.matrixoverlay.svg
 test -f /etc/matrix-overlay/config.toml
 test -f /usr/share/man/man1/matrix-rain.1.gz
 
-# Hardening that a C client loaded into a graphical session must keep.
 # Hardening that a C client loaded into a graphical session must keep. (There is
 # no `readelf -m`: an invalid option prints a usage block, and the grep under it
 # fails with a confusing exit 1 - found the hard way in CI.)

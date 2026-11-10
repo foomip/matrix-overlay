@@ -1,3 +1,16 @@
+matrix-overlay (0.1.4-2) unstable; urgency=medium
+
+  * autopkgtest `smoke` only, again: it ran from the top of the source tree,
+    where `python -m matrix_overlay` puts the working directory on sys.path,
+    so it tested the freshly built *source* copy and reported it as the
+    installed package (the preflight line named the build directory). It now
+    runs from autopkgtest's scratch directory (AUTOPKGTEST_TMP, not the
+    adt-run ADTTMP that lintian still warns about) and asserts that
+    `matrix_overlay.__file__` begins with /usr/lib/matrix-overlay. No
+    installed file changes.
+
+ -- Nelson Pascoal <foomip@users.noreply.github.com>  Tue, 10 Nov 2026 12:57:25 +0200
+
 matrix-overlay (0.1.4-1) unstable; urgency=medium
 
   * Dependencies corrected. The glyph atlas is built with PangoCairo into
@@ -8,8 +21,9 @@ matrix-overlay (0.1.4-1) unstable; urgency=medium
     package without Recommends and died on `import cairo`: that is the
     configuration anyone gets when installing with --no-install-recommends.
   * `matrix_overlay/render.py` (the fallback painter) imports Cairo inside the
-    three methods that draw instead of at module scope, so importing the package
-    far enough to run --diagnose no longer requires the fallback's dependency.
+    three methods that draw instead of at module scope, so importing the
+    package far enough to run --diagnose no longer requires the fallback's
+    dependency.
   * debian/control comments moved to column 0: an indented `#` inside a field
     continuation becomes part of the field value.
   * Tests: 407, including guards that the atlas's import providers stay in
@@ -21,8 +35,8 @@ matrix-overlay (0.1.3-2) unstable; urgency=medium
 
   * autopkgtest `smoke` only: the hardening assertion used `readelf -m`, which
     is not an option, so readelf printed a usage block and the grep under it
-    failed with a confusing exit 1. The check now reads the dynamic section the
-    way readelf wants (`readelf -dW`, DT_BIND_NOW) next to the two program
+    failed with a confusing exit 1. The check now reads the dynamic section
+    the way readelf wants (`readelf -dW`, DT_BIND_NOW) next to the two program
     header checks that were already right. No installed file changes: the
     upstream tarball is still the one exported from tag 0.1.3.
 
@@ -33,44 +47,45 @@ matrix-overlay (0.1.3-1) unstable; urgency=medium
   * The packaged wrapper no longer runs its backend preflight for diagnostic
     modes: on a machine where no backend is usable, `matrix-rain --diagnose`,
     --status, --preflight, --monitor-list and --help all exited 3 before the
-    program could explain anything. Only starting a show (including --self-test)
-    is gated now.
-  * A mode that has to ask the compositor something, finding no session, reports
-    one line and exits 3 (NoWayland) instead of raising a traceback.
+    program could explain anything. Only starting a show (including
+    --self-test) is gated now.
+  * A mode that has to ask the compositor something, finding no session,
+    reports one line and exits 3 (NoWayland) instead of raising a traceback.
   * Manual page added (debian/matrix-rain.1): modes, options, configuration
-    search order, keybinding, files, exit statuses - including that --status and
-    --stop return 1 when nothing is running.
-  * debian/copyright corrected for the vendored protocol files (the layer-shell
-    XML is the no-endorsement X11 text, not MIT) and records source file,
-    interface version and sha256 for each. Artwork and metainfo are MIT, which
-    clears inconsistent-appstream-metadata-license.
+    search order, keybinding, files, exit statuses - including that --status
+    and --stop return 1 when nothing is running.
+  * debian/copyright corrected for the vendored protocol files (the
+    layer-shell XML is the no-endorsement X11 text, not MIT) and records
+    source file, interface version and sha256 for each. Artwork and metainfo
+    are MIT, which clears inconsistent-appstream-metadata-license.
   * debian/tests: two entries, `smoke` (installed package) and `unit` (the
     suite, build-needed). Both now pass in a clean debian:trixie container;
     they had been failing on `make` (the testbed needs its own toolchain) and
     on gdk-pixbuf's SVG loader (librsvg2-common).
   * Section moves to x11; Build-Depends drops gcc (build-essential) and
     pkg-config (pkgconf); the shim stops using `env bash`; native/build.sh is
-    installed executable; the publishing scripts name /usr/bin/python3 (an asdf
-    shim in PATH failed with 126 inside a package build).
-  * Tests: 405, including guards that CI cannot reference a flag the parser does
-    not have, that exactly one binary package is defined, and that the shim does
-    not gate diagnostics.
+    installed executable; the publishing scripts name /usr/bin/python3 (an
+    asdf shim in PATH failed with 126 inside a package build).
+  * Tests: 405, including guards that CI cannot reference a flag the parser
+    does not have, that exactly one binary package is defined, and that the
+    shim does not gate diagnostics.
 
  -- Nelson Pascoal <foomip@users.noreply.github.com>  Tue, 10 Nov 2026 12:05:00 +0200
 
 matrix-overlay (0.1.2-1) unstable; urgency=medium
 
-  * Upstream 0.1.2: the release process and the distribution channel are now one
-    command (packaging/publish.sh / "make publish"), and adding our repository
-    is
-    one file for a client thanks to the matrix-overlay-repo configuration
-    package (key + deb822 source entry, both conffiles).
+  * Upstream 0.1.2: the release process and the distribution channel are now
+    one command (packaging/publish.sh / "make publish"), and adding our
+    repository is one file for a client thanks to the matrix-overlay-repo
+    configuration package (key + deb822 source entry, both conffiles).
   * publish_repo.sh accepts repeated --deb and indexes the whole pool, so the
-    application and its repository configuration ship in one signed repository;
-    component-to-package ownership is derived per package instead of assumed.
+    application and its repository configuration ship in one signed
+    repository; component-to-package ownership is derived per package instead
+    of assumed.
   * Packaging review pass: source format 3.0 (quilt), debian/watch,
-    debian/upstream/metadata, Standards-Version 4.7.4, one Priority declaration
-    in the source stanza, and an autopkgtest over the installed package.
+    debian/upstream/metadata, Standards-Version 4.7.4, one Priority
+    declaration in the source stanza, and an autopkgtest over the installed
+    package.
   * Tests: 375 green, including guards that the shipped key is public-only and
     that the autopkgtest stays display-free and network-free.
 
@@ -79,43 +94,45 @@ matrix-overlay (0.1.2-1) unstable; urgency=medium
 matrix-overlay (0.1.1-1) unstable; urgency=medium
 
   * Source format: "3.0 (native)" is not a valid dpkg-source format string -
-    native is "1.0 (native)". Switched to 3.0 (quilt), which is what the archive
-    expects for a package whose tarball comes from an upstream tag.
+    native is "1.0 (native)". Switched to 3.0 (quilt), which is what the
+    archive expects for a package whose tarball comes from an upstream tag.
   * debian/watch: follow the GitHub tags (pgpmode=none while the tags are
-    unsigned). debian/upstream/metadata records the repository, the bug tracker
-    and the changelog URL.
-    * Standards-Version 4.7.4. Priority is declared once, in the source stanza,
-  and
-    inherited by the binary package: Policy 4.7.3 no longer requires the field,
-    but dpkg-genchanges in Ubuntu 24.04 still warns and emits "Priority: -" when
-    nothing declares it (cf. Debian #1124443).
+    unsigned). debian/upstream/metadata records the repository, the bug
+    tracker and the changelog URL. * Standards-Version 4.7.4. Priority is
+    declared once, in the source stanza, and inherited by the binary package:
+    Policy 4.7.3 no longer requires the field, but dpkg-genchanges in Ubuntu
+    24.04 still warns and emits "Priority: -" when nothing declares it (cf.
+    Debian #1124443).
   * debian/tests: two autopkgtests. "unit" runs the 370-case suite from the
-    source tree (it is headless by design: no compositor is needed), "installed"
-    exercises the shipped command the way a user would without drawing anything
-    on screen (--help, --preflight, and the binary-hardening assertions).
+    source tree (it is headless by design: no compositor is needed),
+    "installed" exercises the shipped command the way a user would without
+    drawing anything on screen (--help, --preflight, and the binary-hardening
+    assertions).
 
  -- Nelson Pascoal <foomip@users.noreply.github.com>  Tue, 10 Nov 2026 09:58:37 +0200
 
 matrix-overlay (0.1.1) noble; urgency=medium
 
-  * Store metadata now survives AppStream processing: the icon SVG parses under
-    gdk-pixbuf (no comments before the root element), media URLs no longer rely
-    on redirects, and the component category is one AppStream accepts. Broken
-    any of these, and appstream-compose drops the component from the catalogue
-    without saying so.
+  * Store metadata now survives AppStream processing: the icon SVG parses
+    under gdk-pixbuf (no comments before the root element), media URLs no
+    longer rely on redirects, and the component category is one AppStream
+    accepts. Broken any of these, and appstream-compose drops the component
+    from the catalogue without saying so.
   * Published as a signed apt repository (packaging/publish_repo.sh): the
     repository now ships the DEP-11 catalogue with a Package link, so COSMIC
     Store can install the app rather than merely describe it.
-  * Documentation: the packaging rules that were measured on a client (catalogue
-    path, three compressed forms, Origin header, Package link), the render-node
-    selection ladder, and why the store route is native and not Flatpak.
+  * Documentation: the packaging rules that were measured on a client
+    (catalogue path, three compressed forms, Origin header, Package link), the
+    render-node selection ladder, and why the store route is native and not
+    Flatpak.
 
  -- Nelson Pascoal <foomip@users.noreply.github.com>  Mon, 09 Nov 2026 17:12:00 +0200
 
 matrix-overlay (0.1.0) noble; urgency=medium
 
   * First packaged release: GPU-composited Matrix rain over every output on
-    COSMIC/Wayland, triggered by a custom shortcut (Ctrl+Shift+M by convention).
+    COSMIC/Wayland, triggered by a custom shortcut (Ctrl+Shift+M by
+    convention).
   * The render node and EGL vendor are detected from the connectors that are
     actually driven, so one package serves hybrid and single-GPU machines.
   * Config chain: --config, MATRIX_OVERLAY_CONFIG, ~/.config, then
