@@ -6,7 +6,7 @@ Archive: stable
 Component: main
 Architectures:
  - amd64
-Time: 20261110T074445
+Time: 20261110T080624
 ---
 Type: desktop-application
 ID: tech.i2r.matrixoverlay
