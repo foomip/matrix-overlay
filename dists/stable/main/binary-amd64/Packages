@@ -26,6 +26,34 @@ Description: apt repository signing key and source for matrix-overlay
  Repository: https://foomip.github.io/matrix-overlay stable main
  Signing key fingerprint: 1552C6EFF1B7B8A7B79C405937ED4872956B954C
 
+Package: matrix-overlay-repo
+Architecture: all
+Version: 0.1.4
+Priority: optional
+Section: misc
+Maintainer: Nelson Pascoal <foomip@users.noreply.github.com>
+Depends: apt (>= 1.6), ca-certificates
+Recommends: appstream
+Filename: pool/main/m/matrix-overlay-repo/matrix-overlay-repo_0.1.4_all.deb
+Size: 1866
+MD5sum: a87ca2ca4f7de1996c90d99b3e881215
+SHA1: d09255ca4377d9fdce7b558fe0beaa7d7d15197e
+SHA256: 8ebbe8e82770cf967aaca4f73d2e46836cdd35623426fb050ed599204e9a6735
+SHA512: c900e51bcf28660a304920dbad6cae607968f64bcd523da01278726be874eb8afb2995b0e20c85ea0ed2979dd3b941e49119f1c3107f5b359b258387474f669e
+Homepage: https://github.com/foomip/matrix-overlay
+Description: apt repository signing key and source for matrix-overlay
+ matrix-overlay draws The Matrix "digital rain" over the COSMIC/Wayland desktop
+ and stops with Escape or a second keybinding press.
+ .
+ This package only installs the signing public key and the repository entry, so
+ that the application and its store listing become installable. It contains no
+ program code and runs nothing at install time beyond refreshing the software
+ centre cache. The key is stored in the usual place (signed-by) rather than in
+ the trusted-keyring directory, so its trust stays scoped to this one source.
+ .
+ Repository: https://foomip.github.io/matrix-overlay stable main
+ Signing key fingerprint: 1552C6EFF1B7B8A7B79C405937ED4872956B954C
+
 Package: matrix-overlay
 Architecture: amd64
 Version: 0.1.0
@@ -120,6 +148,45 @@ MD5sum: e022e70acf99ad007c18687c4a09cc94
 SHA1: 64389b44c56a9060bcea348fa6abedca5d0bc853
 SHA256: 3d95b191915451d4701e41aca2580673722b20d4298332c62ab86d25fdb751a4
 SHA512: 7e085e529f5fddcf31d136ea30179fde288b2a08c254a639f6c56a6274f5eb1fc936c01537721988a5fce3b35f7d5457d8ac367c6d4363f0c7a84c27794b5407
+Homepage: https://github.com/foomip/matrix-overlay
+Description: Matrix-style digital rain over every screen on COSMIC/Wayland
+ A fullscreen overlay that runs The Matrix "digital rain" across every monitor
+ while the desktop dims underneath. Escape, a pointer click, or the same
+ shortcut brings the desktop back.
+ .
+ One zwlr_layer_shell_v1 OVERLAY surface is created per output and painted with
+ GLES2 over EGL, so the compositor imports dmabufs instead of copying a CPU
+ buffer: measured at 22 fps for about nine percent of one core on a 1080p
+ laptop iGPU. The GPU that renders is chosen from the connectors that actually
+ drive a connected output, which is what makes one package work on both a
+ hybrid machine and a single-GPU one.
+ .
+ There is no window and no tray icon by design. Bind the command "matrix-rain"
+ to a COSMIC custom shortcut (Settings, Keyboard, Custom shortcuts) to get the
+ Ctrl+Shift+M trigger; a launcher entry is installed as well so a show can be
+ started without a keybind. The configuration file is reloaded while a show is
+ running, so speed, density, tail length, colours, font and glyph set can be
+ tuned live.
+ .
+ A Cairo/GTK layer-shell painter is kept as a fallback for compositors whose GL
+ path is unusable; its dependencies are Recommends rather than Depends.
+
+Package: matrix-overlay
+Architecture: amd64
+Version: 0.1.4-2
+Priority: optional
+Section: x11
+Maintainer: Nelson Pascoal <foomip@users.noreply.github.com>
+Installed-Size: 464
+Depends: libc6 (>= 2.4), libegl1, libgles2, libwayland-client0 (>= 1.20.0), libwayland-egl1 (>= 1.15.0), python3, python3-gi, gir1.2-glib-2.0, python3-cairo, gir1.2-pango-1.0
+Recommends: gir1.2-gtk-3.0, gir1.2-gtklayershell-0.1, python3-gi-cairo, fonts-noto-cjk
+Suggests: cosmic-settings-daemon
+Filename: pool/main/m/matrix-overlay/matrix-overlay_0.1.4-2_amd64.deb
+Size: 118102
+MD5sum: 927df0d5ceaf4b65739f53f554830e26
+SHA1: e67d90b5c01afef550f9861ef11b4f94b9bb8bdc
+SHA256: 7f2c38beb486ab7677380b182520f6e76fd2a7a8d2d601732e888e2dd27ca9ec
+SHA512: 4703529a8bc0721299dd55272f03a8020323e8ac325b27f8735dfd600f22ed1263b69df2d2a81ac8831fe49d39c1028825c9ade9d31de4ddf4bf0a3f43aa2ffc
 Homepage: https://github.com/foomip/matrix-overlay
 Description: Matrix-style digital rain over every screen on COSMIC/Wayland
  A fullscreen overlay that runs The Matrix "digital rain" across every monitor

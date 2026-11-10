@@ -6,7 +6,7 @@ Archive: stable
 Component: main
 Architectures:
  - amd64
-Time: 20261110T080624
+Time: 20261110T112032
 ---
 Type: desktop-application
 ID: tech.i2r.matrixoverlay
@@ -84,6 +84,39 @@ Screenshots:
     width: 1600
     height: 900
 Releases:
+- version: 0.1.4
+  type: stable
+  unix-timestamp: 1794268800
+  description:
+    C: >-
+      <p>Dependency honesty: the package now declares pycairo and the Pango
+              typelib as hard dependencies, because the glyph atlas is built with
+              PangoCairo and uploaded to the GPU as a texture, so the GL path needs
+              them too; installing without recommends used to leave an unusable
+              install. The fallback painter imports Cairo only when it draws, so a
+              machine with a broken GL path can still run --diagnose.</p>
+- version: 0.1.3
+  type: stable
+  unix-timestamp: 1794268800
+  description:
+    C: >-
+      <p>Diagnosis first: the command now answers --help, --version,
+              --diagnose, --status and --monitor-list even on a machine where no
+              backend can start a show, because that is exactly when someone needs to
+              ask what is wrong. A missing Wayland session is reported in one line
+              instead of a stack trace, and a manual page documents the modes and the
+              exit statuses.</p>
+- version: 0.1.2
+  type: stable
+  unix-timestamp: 1794268800
+  description:
+    C: >-
+      <p>Adding the repository is now one file: a small configuration package
+              installs the signing public key and the apt source entry, so a software
+              centre listing appears without anyone editing /etc/apt by hand.</p>
+      <p>The packaging also moved to a proper source format and gained a
+              version watcher and an installed-package test, which is what lets it be
+              reviewed for inclusion in a distribution archive.</p>
 - version: 0.1.1
   type: stable
   unix-timestamp: 1794182400
@@ -92,13 +125,5 @@ Releases:
       <p>Discoverable and installable from a software centre: the repository now
               publishes the AppStream catalogue next to the package, and the icon and
               screenshots survive AppStream processing.</p>
-- version: 0.1.0
-  type: stable
-  unix-timestamp: 1794182400
-  description:
-    C: >-
-      <p>First packaged release: GPU-composited matrix rain over COSMIC/Wayland,
-              automatic GPU selection, live-reloaded config, and a cairo fallback for
-              compositors without a usable GL path.</p>
 ContentRating:
   oars-1.1: {}
