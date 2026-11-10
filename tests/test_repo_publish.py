@@ -35,7 +35,8 @@ PKG = "mo-test"
 CID = "local.test.matrixoverlay"
 
 
-def build_dummy_deb(tmp: Path) -> Path:
+def build_dummy_deb(tmp: Path, pkg: str = PKG, cid: str = CID,
+                    version: str = "0.9.0") -> Path:
     src = tmp / "src"
     (src / "DEBIAN").mkdir(parents=True)
     (src / "usr/bin").mkdir(parents=True)
@@ -45,47 +46,48 @@ def build_dummy_deb(tmp: Path) -> Path:
     for size in ("64x64", "128x128"):
         (src / f"usr/share/icons/hicolor/{size}/apps").mkdir(parents=True)
         shutil.copy2(REPO / f"assets/hicolor/{size}/apps/tech.i2r.matrixoverlay.png",
-                     src / f"usr/share/icons/hicolor/{size}/apps/{CID}.png")
+                     src / f"usr/share/icons/hicolor/{size}/apps/{cid}.png")
     shutil.copy2(REPO / "assets/tech.i2r.matrixoverlay.svg",
-                 src / f"usr/share/icons/hicolor/scalable/apps/{CID}.svg")
+                 src / f"usr/share/icons/hicolor/scalable/apps/{cid}.svg")
     (src / "usr/bin/mo-thing").write_text("#!/bin/sh\necho hi\n", encoding="utf-8")
     (src / "usr/bin/mo-thing").chmod(0o755)
     (src / "DEBIAN/control").write_text(
-        f"Package: {PKG}\nVersion: 0.9.0\nArchitecture: {ARCH}\n"
+        f"Package: {pkg}\nVersion: {version}\nArchitecture: {ARCH}\n"
         "Maintainer: Test <test@example.invalid>\n"
         "Priority: optional\nSection: graphics\n"
         "Description: throwaway package for the repository test\n"
         " Used only to exercise publish_repo.sh, so nothing here is real.\n",
         encoding="utf-8")
-    (src / f"usr/share/applications/{CID}.desktop").write_text(
+    (src / f"usr/share/applications/{cid}.desktop").write_text(
         "[Desktop Entry]\nType=Application\nName=Repo test\nExec=mo-thing\n"
-        f"Icon={CID}\nCategories=Utility;\n", encoding="utf-8")
-    (src / f"usr/share/metainfo/{CID}.metainfo.xml").write_text(
+        f"Icon={cid}\nCategories=Utility;\n", encoding="utf-8")
+    (src / f"usr/share/metainfo/{cid}.metainfo.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<component type="desktop-application">\n'
-        f"  <id>{CID}</id>\n  <metadata_license>CC0-1.0</metadata_license>\n"
+        f"  <id>{cid}</id>\n  <metadata_license>CC0-1.0</metadata_license>\n"
         "  <project_license>MIT</project_license>\n  <name>Repo test</name>\n"
         "  <summary>Throwaway component used to test the apt repository build</summary>\n"
         "  <description><p>Throwaway component used to test that publish_repo.sh signs a "
         "repository and publishes a catalogue that ties this component to its package.</p>"
         "</description>\n  <categories><category>Utility</category></categories>\n"
-        f"  <launchable type=\"desktop-id\">{CID}.desktop</launchable>\n"
+        f"  <launchable type=\"desktop-id\">{cid}.desktop</launchable>\n"
         "  <url type=\"homepage\">https://github.com/foomip/matrix-overlay</url>\n"
         "  <content_rating type=\"oars-1.1\"/>\n"
-        "  <releases><release version=\"0.9.0\" date=\"2026-11-09\"/></releases>\n"
+        f"  <releases><release version=\"{version}\" date=\"2026-11-09\"/></releases>\n"
         "</component>\n", encoding="utf-8")
-    deb = tmp / f"{PKG}_0.9.0_{ARCH}.deb"
+    deb = tmp / f"{pkg}_{version}_{ARCH}.deb"
     proc = subprocess.run(["dpkg-deb", "--build", "--root-owner-group", str(src),
                            str(deb)], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
     return deb
 
 
-def publish(tmp: Path, deb: Path) -> Path:
+def publish(tmp: Path, *debs: Path) -> Path:
     out = tmp / "apt"
-    proc = subprocess.run(["sh", str(SCRIPT), "--deb", str(deb), "--out", str(out),
-                           "--origin", PKG, "--suite", "stable"],
-                          capture_output=True, text=True)
+    args = ["sh", str(SCRIPT), "--out", str(out), "--origin", PKG, "--suite", "stable"]
+    for deb in debs:
+        args += ["--deb", str(deb)]
+    proc = subprocess.run(args, capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     return out
 
@@ -154,3 +156,42 @@ def test_publishing_twice_is_idempotent_and_keeps_the_signing_key(tmp_path):
     assert (second / "keyid").read_text().strip() == key, "signing key changed"
     assert (second / "dists/stable/InRelease").exists()
     assert (second / "dists/stable/main/dep11" / f"Components-{ARCH}.yml.gz").exists()
+
+
+def test_one_repository_can_publish_two_packages(tmp_path):
+    """The application and the repository-configuration package ship together.
+
+    apt has to offer both, and appstream has to tie *each* component to the
+    package that ships it. A single hard-coded package name would label the second
+    component wrongly and the client would offer to install the wrong thing.
+    """
+    other = "local.test.matrixoverlay-repo"
+    app = build_dummy_deb(tmp_path / "app")
+    cfg = build_dummy_deb(tmp_path / "cfg", pkg="mo-repo", cid=other)
+    dists = publish(tmp_path / "two", app, cfg) / "dists/stable"
+
+    packages = (dists / f"main/binary-{ARCH}/Packages").read_text(encoding="utf-8")
+    stanzas = [s for s in packages.split("\n\n") if s.strip()]
+    found = {s.splitlines()[0].split(": ", 1)[1] for s in stanzas}
+    assert found == {PKG, "mo-repo"}, found
+    for pkg in (PKG, "mo-repo"):
+        want = f"Filename: pool/main/{pkg[0]}/{pkg}/{pkg}_0.9.0_{ARCH}.deb"
+        assert want in packages, packages
+
+    catalog = gzip.decompress(
+        (dists / "main/dep11" / f"Components-{ARCH}.yml.gz").read_bytes()).decode("utf-8")
+    owner, pending = {}, None
+    for line in catalog.splitlines():
+        if line.startswith("ID: "):
+            pending = line[4:].strip()
+        elif line.startswith("Package: ") and pending:
+            owner[pending] = line[9:].strip()
+            pending = None
+    assert owner == {CID: PKG, other: "mo-repo"}, owner
+
+    # DEP-11 icon entries are named <pkgname>_<component-id>.png: get the owner
+    # wrong here and the store shows an entry with no picture.
+    with tarfile.open(dists / "main/dep11/icons-64x64.tar") as tar:
+        names = sorted(tar.getnames())
+    assert f"./{PKG}_{CID}.png" in names, names
+    assert f"./mo-repo_{other}.png" in names, names

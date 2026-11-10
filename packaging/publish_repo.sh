@@ -17,10 +17,11 @@ set -eu
 
 usage() {
     cat <<'EOF'
-usage: sh packaging/publish_repo.sh [--deb FILE] [--out DIR] [--suite NAME]
+usage: sh packaging/publish_repo.sh [--deb FILE]... [--out DIR] [--suite NAME]
                                     [--origin NAME] [--components LIST] [--verbose]
 
-  --deb FILE        the .deb to publish (default: newest matrix-overlay_*_amd64.deb
+  --deb FILE        the .deb to publish; repeat it to publish several packages
+                    into one repository (default: newest matrix-overlay_*_amd64.deb
                     in --deb-dir, which defaults to ~/artifacts)
   --out DIR         repository root (default: ~/artifacts/apt)
   --suite NAME      apt suite/branch (default: stable)
@@ -30,7 +31,7 @@ usage: sh packaging/publish_repo.sh [--deb FILE] [--out DIR] [--suite NAME]
 EOF
 }
 
-DEB=""
+NDEB=0
 OUT="${HOME}/artifacts/apt"
 DEB_DIR="${HOME}/artifacts"
 SUITE=stable
@@ -42,7 +43,9 @@ VERBOSE=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --deb)         DEB=$2; shift 2 ;;
+        # Indexed variables, not a joined string: package paths can contain spaces,
+        # and command substitution would eat the separator such a list would need.
+        --deb)         NDEB=$((NDEB+1)); eval "DEB$NDEB=\$2"; shift 2 ;;
         --deb-dir)     DEB_DIR=$2; shift 2 ;;
         --out)         OUT=$2; shift 2 ;;
         --suite)       SUITE=$2; shift 2 ;;
@@ -57,14 +60,20 @@ done
 say() { printf 'publish_repo: %s\n' "$*"; }
 run() { [ -n "$VERBOSE" ] && printf '  $ %s\n' "$*" >&2; "$@"; }
 
-if [ -z "$DEB" ]; then
-    DEB=$(ls -1t "$DEB_DIR"/matrix-overlay_*_amd64.deb 2>/dev/null | head -1)
-    [ -n "$DEB" ] || { say "no .deb found under $DEB_DIR (build one with dpkg-buildpackage)"; exit 2; }
+if [ "$NDEB" -eq 0 ]; then
+    DEB1=$(ls -1t "$DEB_DIR"/matrix-overlay_*_amd64.deb 2>/dev/null | head -1)
+    [ -n "$DEB1" ] || { say "no .deb found under $DEB_DIR (build one with dpkg-buildpackage)"; exit 2; }
+    NDEB=1
 fi
-[ -f "$DEB" ] || { say "no such package: $DEB"; exit 2; }
-PKG=$(dpkg-deb -f "$DEB" Package)
-VERSION=$(dpkg-deb -f "$DEB" Version)
-say "package: $PKG $VERSION ($DEB)"
+i=1
+while [ "$i" -le "$NDEB" ]; do
+    eval "d=\$DEB$i"
+    [ -f "$d" ] || { say "no such package: $d"; exit 2; }
+    eval "PKG$i=\$(dpkg-deb -f \"$d\" Package)"
+    eval "VER$i=\$(dpkg-deb -f \"$d\" Version)"
+    eval "say \"package: \$PKG$i \$VER$i (\$d)\""
+    i=$((i+1))
+done
 
 # ------------------------------------------------------------- signing key ---
 # Unattended signing needs an unprotected key, so it is confined to the repo dir
@@ -77,7 +86,7 @@ if [ -f "$OUT/keyid" ]; then
 else
     mkdir -p "$OUT"
     install -d -m 700 "$GNUPGHOME"
-    say "no signing key yet: generating an ed25519 sign-only key in $GNUPGHOME"
+    say "no signing key yet: generating an ed25519 key (usage: sign) in $GNUPGHOME"
     gpg --batch --yes --pinentry-mode loopback --passphrase '' \
         --quick-generate-key "matrix-overlay apt signing key" ed25519 sign never
     KEYID=$(gpg --batch --with-colons --list-secret-keys \
@@ -109,15 +118,43 @@ fi
 rm -rf "$OUT/dists/$SUITE"
 
 # ------------------------------------------------------------------- pool ----
-POOL="pool/main/$(printf '%.1s' "$PKG")/$PKG"
-mkdir -p "$OUT/$POOL" "$OUT/dists/$SUITE/main/binary-$ARCH"
-cp -f "$DEB" "$OUT/$POOL/$(basename "$DEB")"
-say "pool: $POOL/$(basename "$DEB")"
+mkdir -p "$OUT/dists/$SUITE/main/binary-$ARCH"
+i=1
+while [ "$i" -le "$NDEB" ]; do
+    eval "d=\$DEB$i; p=\$PKG$i"
+    eval "POOL$i=\"pool/main/\$(printf '%.1s' \"\$p\")/\$p\""
+    eval "mkdir -p \"\$OUT/\$POOL$i\""
+    eval "cp -f \"\$d\" \"\$OUT/\$POOL$i/\$(basename \"\$d\")\""
+    eval "say \"pool: \$POOL$i/\$(basename \"\$d\")\""
+    i=$((i+1))
+done
 
 # ---------------------------------------------------------------- metadata ---
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT INT TERM
-dpkg-deb -x "$DEB" "$WORK/root"
+# Which package owns which component id: the catalogue must carry a Package: link
+# per component, and icon tarballs are named <pkgname>_<id>.png, so both need the
+# mapping rather than a single package name now that a repository can ship several.
+MAP=""
+i=1
+while [ "$i" -le "$NDEB" ]; do
+    eval "d=\$DEB$i; p=\$PKG$i"
+    for meta in $(dpkg-deb -c "$d" | awk '{print $NF}' \
+                    | grep '^\./usr/share/metainfo/.*\.metainfo\.xml$'); do
+        MAP="$MAP$(printf '%s' "${MAP:+,}")$(basename "$meta" .metainfo.xml)=$p"
+    done
+    i=$((i+1))
+done
+component_owner() { printf '%s\n' "$MAP" | tr ',' '\n' | sed -n "s|^$1=||p" | head -n 1; }
+
+# Every payload is unpacked into the same root, so the catalogue is the union of
+# what the repository actually ships. A package with no metainfo (the repository
+# configuration package, for instance) simply contributes nothing here.
+i=1
+while [ "$i" -le "$NDEB" ]; do
+    eval "dpkg-deb -x \"\$DEB$i\" \"$WORK/root\""
+    i=$((i+1))
+done
 [ -d "$WORK/root/usr/share/metainfo" ] || { say "package ships no metainfo"; exit 4; }
 
 args="--prefix=/usr --result-root=$WORK/meta --data-dir=$WORK/meta --origin=$ORIGIN $VERBOSE"
@@ -147,10 +184,11 @@ if [ -z "$COMPONENTS" ]; then
         COMPONENTS="$COMPONENTS$(printf '%s' "${COMPONENTS:+,}")$(basename "$meta" .metainfo.xml)"
     done
 fi
-python3 - "$WORK/meta/components.yml" "$COMPONENTS" "$PKG" "$ORIGIN" "$SUITE" "$ARCH" <<'PYIN'
+python3 - "$WORK/meta/components.yml" "$COMPONENTS" "$MAP" "$ORIGIN" "$SUITE" "$ARCH" <<'PYIN'
 import sys
 import time
-path, want, pkg, origin, suite, arch = sys.argv[1:7]
+path, want, pkgmap, origin, suite, arch = sys.argv[1:7]
+owner = dict(pair.split("=", 1) for pair in pkgmap.split(",") if "=" in pair)
 body = open(path, encoding="utf-8").read()
 
 # Replace the catalogue header with a canonical DEP-11 one. `convert` writes
@@ -175,6 +213,11 @@ out, hit = [], 0
 for line in body.splitlines(keepends=True):
     out.append(line)
     if line.startswith("ID: ") and line[4:].strip() in want:
+        cid = line[4:].strip()
+        pkg = owner.get(cid) or (next(iter(owner.values()), "") if owner else "")
+        if not pkg:
+            raise SystemExit(f"publish_repo: component {cid} has no owning package "
+                             f"in the published set - check --components")
         out.append(f"Package: {pkg}\n")
         hit += 1
 if not hit:
@@ -200,14 +243,17 @@ for size in 48x48 64x64 128x128; do
     mkdir -p "$stage"
     for meta in "$WORK/root/usr/share/metainfo"/*.metainfo.xml; do
         cid=$(basename "$meta" .metainfo.xml)
-        [ -f "$src/$cid.png" ] && cp "$src/$cid.png" "$stage/${PKG}_${cid}.png"
+        own=$(component_owner "$cid"); [ -n "$own" ] || own=$PKG1
+        [ -f "$src/$cid.png" ] && cp "$src/$cid.png" "$stage/${own}_${cid}.png"
     done
     ( CDPATH= cd -- "$stage" && tar -cf "$OUT/dists/$SUITE/main/dep11/icons-$size.tar" . )
 done
 say "metadata: main/dep11/Components-$ARCH.yml{,.gz,.xz} (+ Package: link), icons tarballs"
 
 # ------------------------------------------------------------- index, sign ---
-( CDPATH= cd -- "$OUT" && apt-ftparchive packages "$POOL" \
+# Index the whole pool, not one package's directory: a repository that publishes
+# two packages has to offer both to apt.
+( CDPATH= cd -- "$OUT" && apt-ftparchive packages pool \
     > "dists/$SUITE/main/binary-$ARCH/Packages" )
 for ext in gz xz; do
     ( CDPATH= cd -- "$OUT/dists/$SUITE/main/binary-$ARCH" && case $ext in
