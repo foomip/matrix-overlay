@@ -368,3 +368,38 @@ def test_status_output_is_json(tmp_path):
                                  ready=1, extra={"tick": 7})
     assert json.loads(json.dumps(payload))["pid"] == 4242
     assert json.loads(json.dumps(payload))["tick"] == 7
+
+
+# ------------------------------------------------------- the CLI's own contract --
+#
+# An autopkgtest, a manual page and a human at a terminal all rely on these
+# exit codes. They were wrong once: `--help` printed the help text and then
+# exited 64, because argparse's help path raises SystemExit(0) and the parser
+# wrapped every exception, SystemExit included, into UsageError.
+
+
+def test_help_exits_zero_and_not_as_a_usage_error():
+    with pytest.raises(SystemExit) as excinfo:
+        cli.parse_args(["--help"])
+    assert excinfo.value.code == 0, "argparse's --help is a success path"
+
+
+def test_main_returns_zero_for_help(capsys):
+    assert cli.main(["--help"]) == 0
+    assert "usage: matrix-rain" in capsys.readouterr().out
+
+
+def test_main_has_a_version_flag_that_reports_the_package_version(capsys):
+    from matrix_overlay import __version__
+    assert cli.main(["--version"]) == 0
+    assert capsys.readouterr().out.strip() == f"matrix-rain {__version__}"
+
+
+def test_main_still_reports_an_unknown_option_as_usage(capsys):
+    assert cli.main(["--definitely-not-a-flag"]) == 64
+    assert "matrix-rain:" in capsys.readouterr().err
+
+
+def test_the_mode_flags_are_all_mutually_exclusive_as_before():
+    with pytest.raises(cli.UsageError):
+        cli.parse_args(["--status", "--stop"])

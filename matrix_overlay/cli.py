@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+from . import __version__
 from .config import Capabilities, Config, ConfigStore, load_default, replace_config
 from .surface import MonitorInfo
 
@@ -64,15 +65,30 @@ MODE_FLAGS = ("preflight", "print-default-config", "self-test", "monitor-list",
 
 
 def parse_args(argv: list[str]) -> Options:
-    parser = argparse.ArgumentParser(prog="matrix-rain", add_help=True)
+    # exit_on_error is a constructor keyword, not an attribute set after the
+    # fact: argparse reads it while parsing. False means its own errors come to
+    # us as ArgumentError instead of calling sys.exit(). `--help` and `--version`
+    # still exit through SystemExit(0) whatever we do, and that is a *success*
+    # path: it used to be swept into UsageError, so `matrix-rain --help` printed
+    # the help text and returned 64, which breaks any script or autopkgtest that
+    # chains on it.
+    parser = argparse.ArgumentParser(prog="matrix-rain", add_help=True,
+                                     exit_on_error=False)
     parser.add_argument("--config", default=None)
     parser.add_argument("--geometry", default=None)
+    parser.add_argument("--version", "-V", action="version",
+                        version=f"matrix-rain {__version__}")
     for mode in MODE_FLAGS:
         parser.add_argument("--" + mode, action="store_true")
-    parser.exit_on_error = True  # argparse>=3.9: raise instead of sys.exit
     try:
         ns = parser.parse_args(argv)
-    except (SystemExit, Exception) as exc:  # argparse raises both
+    except SystemExit as exc:
+        if exc.code in (0, None):
+            raise  # --help / --version: let main() honour the success status
+        # argparse has already written a precise complaint to stderr; say only
+        # enough to be useful instead of echoing its exit code back.
+        raise UsageError("invalid usage (run matrix-rain --help)") from exc
+    except Exception as exc:  # ArgumentError and friends, with exit_on_error=False
         raise UsageError(str(exc)) from exc
     chosen = [m for m in MODE_FLAGS if getattr(ns, m.replace("-", "_"), False)]
     if len(chosen) > 1:
@@ -1158,6 +1174,10 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     try:
         opts = parse_args(argv)
+    except SystemExit as exc:
+        # argparse already wrote the help/version text (or its own error);
+        # honour its status instead of inventing one.
+        return int(exc.code or 0)
     except UsageError as exc:
         eprint(f"matrix-rain: {exc}")
         return 64
