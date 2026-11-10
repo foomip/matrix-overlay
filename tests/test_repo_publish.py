@@ -195,3 +195,17 @@ def test_one_repository_can_publish_two_packages(tmp_path):
         names = sorted(tar.getnames())
     assert f"./{PKG}_{CID}.png" in names, names
     assert f"./mo-repo_{other}.png" in names, names
+
+
+def test_the_publishing_scripts_use_the_system_interpreter():
+    """A version-manager shim in PATH (`python3`) has no `gi` and can fail with
+    126 inside a package build, which is how this project was bitten once. The
+    app, the tests and the packaging must all name /usr/bin/python3."""
+    for rel in ("packaging/publish_repo.sh", "packaging/repo-config/build.sh",
+                "packaging/publish.sh", "install.sh", "Makefile", "debian/rules"):
+        text = (REPO / rel).read_text(encoding="utf-8")
+        bare = [line for line in text.splitlines()
+                if "python3" in line and "/usr/bin/python3" not in line
+                and "python3-" not in line and not line.lstrip().startswith("#")
+                and "env python3" not in line]
+        assert not bare, f"{rel} calls a bare python3: {bare}"

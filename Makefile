@@ -15,6 +15,10 @@ PYTHON ?= /usr/bin/python3
 # make sure debian/changelog and the AppStream release agree with it.
 UPSTREAM_VERSION = $(shell $(PYTHON) -c "import sys; sys.path.insert(0, '.'); \
 	import matrix_overlay; print(matrix_overlay.__version__)")
+# Where the orig tarball lands. Default: beside the checkout, which is what a
+# normal ~/src/<pkg> layout wants; a gate run stages it elsewhere so a working
+# tree never accumulates .dsc/.changes/.buildinfo next to it.
+ORIGDIR ?= ..
 
 native:
 	sh native/build.sh
@@ -72,11 +76,12 @@ orig:
 		| tar -xf - -C "$$d"; \
 	rm -rf "$$d/matrix-overlay-$(UPSTREAM_VERSION)/debian"; \
 	epoch=$$(git log -1 --format=%ct "refs/tags/$(UPSTREAM_VERSION)"); \
+	mkdir -p "$(ORIGDIR)"; \
 	tar --sort=name --format=gnu --owner=0 --group=0 --numeric-owner \
-		--mtime="@$$epoch" -czf ../matrix-overlay_$(UPSTREAM_VERSION).orig.tar.gz \
+		--mtime="@$$epoch" -czf "$(ORIGDIR)/matrix-overlay_$(UPSTREAM_VERSION).orig.tar.gz" \
 		-C "$$d" matrix-overlay-$(UPSTREAM_VERSION); \
-	echo "orig: ../matrix-overlay_$(UPSTREAM_VERSION).orig.tar.gz (SOURCE_DATE_EPOCH=$$epoch, debian/ stripped)"; \
-	sha256sum ../matrix-overlay_$(UPSTREAM_VERSION).orig.tar.gz
+	echo "orig: $(ORIGDIR)/matrix-overlay_$(UPSTREAM_VERSION).orig.tar.gz (SOURCE_DATE_EPOCH=$$epoch, debian/ stripped)"; \
+	sha256sum "$(ORIGDIR)/matrix-overlay_$(UPSTREAM_VERSION).orig.tar.gz"
 
 # Build the application and the repository package, then sign and index them into
 # one repository. Prints the push-to-Pages and client instructions afterwards.

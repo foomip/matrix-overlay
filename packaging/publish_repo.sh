@@ -107,6 +107,7 @@ else
         say "WARNING: no revocation certificate found; generate one before publishing"
     fi
     say "signing key $KEYID"
+[ -x /usr/bin/python3 ] || { say "no /usr/bin/python3: the catalogue rewrite needs the system python (a version-manager shim in PATH is not enough)"; exit 3; }
     say "public key: $OUT/keyring/matrix-overlay.asc"
     say "REVOCATION CERTIFICATE: $OUT/revocation/ - back it up with .gnupg"
 fi
@@ -184,7 +185,11 @@ if [ -z "$COMPONENTS" ]; then
         COMPONENTS="$COMPONENTS$(printf '%s' "${COMPONENTS:+,}")$(basename "$meta" .metainfo.xml)"
     done
 fi
-python3 - "$WORK/meta/components.yml" "$COMPONENTS" "$MAP" "$ORIGIN" "$SUITE" "$ARCH" <<'PYIN'
+# The system interpreter, never whatever `python3` means in this shell: a
+# version-manager shim (asdf/rpy2/pyenv) has no `gi`, can fail with 126 inside a
+# package build, and makes the same command behave differently on two machines.
+# The rest of the project pins /usr/bin/python3 for exactly this reason.
+/usr/bin/python3 - "$WORK/meta/components.yml" "$COMPONENTS" "$MAP" "$ORIGIN" "$SUITE" "$ARCH" <<'PYIN'
 import sys
 import time
 path, want, pkgmap, origin, suite, arch = sys.argv[1:7]

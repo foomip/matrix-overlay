@@ -1,7 +1,8 @@
 matrix-overlay (0.1.2-1) unstable; urgency=medium
 
   * Upstream 0.1.2: the release process and the distribution channel are now one
-command (packaging/publish.sh / "make publish"), and adding our repository is
+    command (packaging/publish.sh / "make publish"), and adding our repository
+    is
     one file for a client thanks to the matrix-overlay-repo configuration
     package (key + deb822 source entry, both conffiles).
   * publish_repo.sh accepts repeated --deb and indexes the whole pool, so the
@@ -23,7 +24,7 @@ matrix-overlay (0.1.1-1) unstable; urgency=medium
   * debian/watch: follow the GitHub tags (pgpmode=none while the tags are
     unsigned). debian/upstream/metadata records the repository, the bug tracker
     and the changelog URL.
-* Standards-Version 4.7.4. Priority is declared once, in the source stanza,
+    * Standards-Version 4.7.4. Priority is declared once, in the source stanza,
   and
     inherited by the binary package: Policy 4.7.3 no longer requires the field,
     but dpkg-genchanges in Ubuntu 24.04 still warns and emits "Priority: -" when
